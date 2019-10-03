@@ -43,9 +43,13 @@ Finally, build the kernel according the next table of product names:
 | bq aquaris X5 Plus        | gohan                   |
 
 
-        $ make -C kernel  O=../KERNEL_OUT  ARCH=arm CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi- {product}_defconfig
-        $ make O=../KERNEL_OUT/ -C kernel ARCH=arm  CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi-                       
+        make -C android_kernel_bq_msm8976 O=../KERNEL_OUT  ARCH=arm CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi- gohan_defconfig
+        make O=../KERNEL_OUT/ -C android_kernel_bq_msm8976 ARCH=arm  CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi-                       
     
 You can specify "-j CORES" argument to speed-up your compilation, example:
 
-        $ make O=../KERNEL_OUT/ -C kernel ARCH=arm  CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi- -j 8
+        make O=../KERNEL_OUT/ -C android_kernel_bq_msm8976 ARCH=arm  CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi- -j 8
+        
+        
+        abootimg --create ./KernelImage/Boot85.img -f ./KernelImage/bootimg.cfg -k ./KERNEL_OUT/arch/arm/boot/zImage-dtb -r ./KernelImage/initrd.img
+
