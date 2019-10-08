@@ -826,6 +826,7 @@ static struct kobject *get_device_parent(struct device *dev,
 		return &parent->kobj;
 	return NULL;
 }
+
 static inline bool live_in_glue_dir(struct kobject *kobj,
 					struct device *dev)
 {
@@ -1161,8 +1162,7 @@ done:
 	kobject_del(&dev->kobj);
  Error:
 	cleanup_glue_dir(dev, glue_dir);
-	if (parent)
-		put_device(parent);
+    put_device(parent);
 name_error:
 	kfree(dev->p);
 	dev->p = NULL;

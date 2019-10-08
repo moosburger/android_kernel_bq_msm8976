@@ -45,6 +45,13 @@
 #include <sound/compress_driver.h>
 
 #define U32_MAX ((u32)~0U)
+ 
+/* struct snd_compr_codec_caps overflows the ioctl bit size for some
+ * architectures, so we need to disable the relevant ioctls.
+ */
+#if _IOC_SIZEBITS < 14
+#define COMPR_CODEC_CAPS_OVERFLOW
+#endif
 
 /* TODO:
  * - add substream support for multiple devices in case of
@@ -445,6 +452,7 @@ out:
 	return retval;
 }
 
+#ifndef COMPR_CODEC_CAPS_OVERFLOW
 static int
 snd_compr_get_codec_caps(struct snd_compr_stream *stream, unsigned long arg)
 {
@@ -468,6 +476,7 @@ out:
 	kfree(caps);
 	return retval;
 }
+#endif /* !COMPR_CODEC_CAPS_OVERFLOW */
 
 /* revisit this with snd_pcm_preallocate_xxx */
 static int snd_compr_allocate_buffer(struct snd_compr_stream *stream,

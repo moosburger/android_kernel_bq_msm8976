@@ -1476,15 +1476,16 @@ static void __queue_delayed_work(int cpu, struct workqueue_struct *wq,
 		__queue_work(cpu, wq, &dwork->work);
 		return;
 	}
+ 	//timer_stats_timer_set_start_info(&dwork->timer);
 
 	dwork->wq = wq;
 	dwork->cpu = cpu;
 	timer->expires = jiffies + delay;
-
+   
 	if (unlikely(cpu != WORK_CPU_UNBOUND))
 		add_timer_on(timer, cpu);
 	else
-		add_timer(timer);
+		add_timer(timer);  
 }
 
 /**
