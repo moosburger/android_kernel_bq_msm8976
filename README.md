@@ -60,12 +60,14 @@ We have the kernel. Next we need to package it up into a bootloader image. A boo
         A kernel command-line
 
 We have an Android boot image which contains a stock kernel, ramdisk and command-line. We extract all of these using:
-    abootimg -x boot.img
+
+        abootimg -x boot.img
 
 This results in the following files:
-    bootimg.cfg: configuration with addresses, sizes and the kernel commandline.
-    zImage: the stock kernel
-    initrd.img: the stock ramdisk
+
+        bootimg.cfg: configuration with addresses, sizes and the kernel commandline.
+        zImage: the stock kernel
+        initrd.img: the stock ramdisk
 
 We will use the same configuration file and ramdisk.
 
