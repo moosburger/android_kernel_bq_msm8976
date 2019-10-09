@@ -48,8 +48,36 @@ Finally, build the kernel according the next table of product names:
     
 You can specify "-j CORES" argument to speed-up your compilation, example:
 
-        make O=../KERNEL_OUT/ -C android_kernel_bq_msm8976 ARCH=arm  CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi- -j 8
+        make O=../KERNEL_OUT/ -C android_kernel_bq_msm8976 ARCH=arm  CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi- -j 8        
         
+Next from https://softwarebakery.com/building-the-android-kernel-on-linux
+Preparing a boot image
+
+We have the kernel. Next we need to package it up into a bootloader image. A bootloader image usually consists of:
+    A kernel image
+    A ramdisk image
+    A kernel command-line
+
+We have an Android boot image which contains a stock kernel, ramdisk and command-line. We extract all of these using:
+    abootimg -x boot.img
+
+This results in the following files:
+    bootimg.cfg: configuration with addresses, sizes and the kernel commandline.
+    zImage: the stock kernel
+    initrd.img: the stock ramdisk
+
+We will use the same configuration file and ramdisk.
+
+Open bootimg.cfg with your favorite editor and remove the line with 
+    bootsize =. 
+
+Alternatively use the following line to do the same:
+    sed -i '/bootsize =/d' bootimg.cfg
+
+Now we can create our custom boot image. We name it newboot.img using the following line:
+    abootimg --create ./KernelImage/Boot85.img -f ./KernelImage/bootimg.cfg -k ./KERNEL_OUT/arch/arm/boot/zImage-dtb -r ./KernelImage/initrd.img
+    
+reboot in bootloader
+    fastboot boot newboot.img
         
-        abootimg --create ./KernelImage/Boot85.img -f ./KernelImage/bootimg.cfg -k ./KERNEL_OUT/arch/arm/boot/zImage-dtb -r ./KernelImage/initrd.img
 
