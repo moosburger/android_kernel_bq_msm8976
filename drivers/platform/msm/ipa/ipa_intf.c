@@ -357,6 +357,14 @@ int ipa_query_intf_ext_props(struct ipa_ioc_query_intf_ext_props *ext)
 	mutex_lock(&ipa_ctx->lock);
 	list_for_each_entry(entry, &ipa_ctx->intf_list, link) {
 		if (!strcmp(entry->name, ext->name)) {
+			/* add the entry check */
+			if (entry->num_ext_props != ext->num_ext_props) {
+				IPAERR("invalid entry number(%u %u)\n",
+					entry->num_ext_props,
+						ext->num_ext_props);
+				mutex_unlock(&ipa_ctx->lock);
+				return result;
+			}
 			memcpy(ext->ext, entry->ext, entry->num_ext_props *
 					sizeof(struct ipa_ioc_ext_intf_prop));
 			result = 0;

@@ -3644,6 +3644,14 @@ int msm_isp_update_axi_stream(struct vfe_device *vfe_dev, void *arg)
 				&update_cmd->update_info[i];
 			stream_info = &axi_data->stream_info[HANDLE_TO_IDX(
 				update_info->stream_handle)];
+            
+            if (stream_info == NULL) {
+                pr_err("%s: stream_info is NULL\n",
+                    __func__);
+                rc = -EINVAL;
+                break;
+            }      
+            
 			rc = msm_isp_request_frame(vfe_dev, stream_info,
 				update_info->user_stream_id,
 				update_info->frame_id);
