@@ -143,7 +143,6 @@ limProcessAuthFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession pse
                             *encrAuthFrame = NULL,
                             *plainBody = NULL;
     tANI_U16                frameLen;
-    //tANI_U32                authRspTimeout, maxNumPreAuth, val;
     tANI_U32                maxNumPreAuth, val;
     tSirMacAuthFrameBody    *pRxAuthFrameBody,
                             *rxAuthFrame = NULL,
@@ -218,6 +217,12 @@ limProcessAuthFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession pse
         goto free;
     }
 
+    encrAuthFrame = vos_mem_malloc(LIM_ENCR_AUTH_BODY_LEN);
+    if (!encrAuthFrame) {
+        limLog(pMac, LOGE, FL("failed to allocate memory"));
+        goto free;
+    }
+
     plainBody = vos_mem_malloc(LIM_ENCR_AUTH_BODY_LEN);
     if (!plainBody) {
         limLog(pMac, LOGE, FL("failed to allocate memory"));
@@ -232,6 +237,7 @@ limProcessAuthFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession pse
 
     vos_mem_set(rxAuthFrame, sizeof(tSirMacAuthFrameBody), 0);
     vos_mem_set(authFrame, sizeof(tSirMacAuthFrameBody), 0);
+    vos_mem_set(encrAuthFrame, LIM_ENCR_AUTH_BODY_LEN, 0);
     vos_mem_set(plainBody, LIM_ENCR_AUTH_BODY_LEN, 0);
     vos_mem_set(challengeTextArray, SIR_MAC_SAP_AUTH_CHALLENGE_LENGTH, 0);
    
@@ -284,7 +290,8 @@ limProcessAuthFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession pse
             goto free;
         }
 
-        if (frameLen < LIM_ENCR_AUTH_BODY_LEN_SAP)
+		if ((frameLen < LIM_ENCR_AUTH_BODY_LEN_SAP) ||
+		    (frameLen > LIM_ENCR_AUTH_BODY_LEN))
         {
             // Log error
             limLog(pMac, LOGE,

@@ -1377,11 +1377,13 @@ int hdd_softap_unpackIE(
         pRsnIe = gen_ie + 2; 
         RSNIeLen = gen_ie_len - 2; 
         // Unpack the RSN IE
-        memset(&dot11RSNIE, 0, sizeof(tDot11fIERSN));
-        dot11fUnpackIeRSN((tpAniSirGlobal) halHandle, 
-                            pRsnIe, 
-                            RSNIeLen, 
-                            &dot11RSNIE);
+        memset(&dot11RSNIE, 0, sizeof(tDot11fIERSN));     
+        if (dot11fUnpackIeRSN((tpAniSirGlobal) halHandle,
+                             pRsnIe,
+                             RSNIeLen,
+                             &dot11RSNIE) != DOT11F_PARSE_SUCCESS) {
+            return -EINVAL;
+        }
         // Copy out the encryption and authentication types 
         hddLog(LOG1, FL("%s: pairwise cipher suite count: %d"),
                 __func__, dot11RSNIE.pwise_cipher_suite_count );

@@ -11762,10 +11762,23 @@ static int __wlan_hdd_cfg80211_add_key( struct wiphy *wiphy,
 
         return -EINVAL;
     }
-
+    
     hddLog(VOS_TRACE_LEVEL_INFO,
            "%s: called with key index = %d & key length %d",
            __func__, key_index, params->key_len);
+    
+
+    if (CSR_MAX_KEY_LEN < params->seq_len)
+    {
+        hddLog(VOS_TRACE_LEVEL_ERROR, "%s: Invalid key length %d", __func__,
+                params->seq_len);
+
+        return -EINVAL;
+    }
+    
+    hddLog(VOS_TRACE_LEVEL_INFO,
+           "%s: called with key index = %d & key length %d",
+           __func__, key_index, params->seq_len);
 
     /*extract key idx, key len and key*/
     vos_mem_zero(&setKey,sizeof(tCsrRoamSetKey));
@@ -15699,6 +15712,11 @@ static int wlan_hdd_cfg80211_set_privacy_ibss(
             if ( NULL != ie )
             {
                 pWextState->wpaVersion = IW_AUTH_WPA_VERSION_WPA;
+				if (ie[1] < DOT11F_IE_WPA_MIN_LEN ||
+				    ie[1] > DOT11F_IE_WPA_MAX_LEN) {
+                    hddLog(VOS_TRACE_LEVEL_ERROR, "invalid ie len:%d", ie[1]);                        
+					return -EINVAL;
+				}
                 // Unpack the WPA IE
                 //Skip past the EID byte and length byte - and four byte WiFi OUI
                 dot11fUnpackIeWPA((tpAniSirGlobal) halHandle,
