@@ -232,6 +232,8 @@ static void framesDump(tpAniSirGlobal pCtx, int nSev, tANI_U8 *pBuf, int nBuf)
      framesLog((ctx), (sev), (fmt), (p1), (p2));
 #define FRAMES_LOG3(ctx, sev, fmt, p1, p2, p3) \
      framesLog((ctx), (sev), (fmt), (p1), (p2), (p3));
+#define FRAMES_LOG4(ctx, sev, fmt, p1, p2, p3, p4) \
+     framesLog((ctx), (sev), (fmt), (p1), (p2), (p3), (p4));
 #define FRAMES_DUMP(ctx, sev, p, n) \
      framesDump((ctx), (sev), (p), (n));
 #ifndef FRAMES_SEV_FOR_FRAME
@@ -245,6 +247,7 @@ static void framesDump(tpAniSirGlobal pCtx, int nSev, tANI_U8 *pBuf, int nBuf)
 #   define FRAMES_LOG1(ctx, sev, fmt, p1)
 #   define FRAMES_LOG2(ctx, sev, fmt, p1, p2)
 #   define FRAMES_LOG3(ctx, sev, fmt, p1, p2, p3)
+#   define FRAMES_LOG4(ctx, sev, fmt, p1, p2, p3, p4) 
 #   define FRAMES_DUMP(ctx, sev, p, n)
 #   ifndef FRAMES_SEV_FOR_FRAME
 #       define FRAMES_SEV_FOR_FRAME(ctx, sig) FRLOG3
@@ -482,13 +485,17 @@ static tANI_U32 GetContainerIesLen(tpAniSirGlobal pCtx,
     len += 2;
     while ( len < nBuf )
     {
-        if( NULL == (pIe =  FindIEDefn(pCtx, pBufRemaining, nBuf + len, IEs)))
+        pIe =  FindIEDefn(pCtx, pBufRemaining, nBuf - len, IEs);
+        if( NULL == pIe)
              break;
         if( pIe->eid == pIeFirst->eid )
              break;
         len += *(pBufRemaining + 1) + 2;
         pBufRemaining += *(pBufRemaining + 1) + 2;
     }
+
+	if ((len > 0xFF) || (len > nBuf))
+ 		return DOT11F_INTERNAL_ERROR;
 
     *pnConsumed = len;
     return DOT11F_PARSE_SUCCESS;
@@ -547,11 +554,11 @@ void dot11fUnpackFfCommonFunc(tpAniSirGlobal pCtx,
     (void)pCtx;
 } /* End dot11fUnpackFfCommonFunc. */
 
-tANI_U32 dot11fUnpackIeCommonFunc(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
+tANI_U32 dot11fUnpackIeCommonFunc(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen,
                                          tANI_U8 *pDstPresent , tANI_U8 *pDstField)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)ielen;
+    (void)tlvlen;
     (void)pBuf;
     if ((*pDstPresent)) status = DOT11F_DUPLICATE_IE;
     *pDstPresent = 1;
@@ -1031,6 +1038,10 @@ tANI_U32 dot11fUnpackTlvAuthorizedMACs(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 6)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     DOT11F_MEMCPY(pCtx, pDst->mac, pBuf, 6);
     pBuf += 6;
     tlvlen -= (tANI_U8)6;
@@ -1049,6 +1060,10 @@ tANI_U32 dot11fUnpackTlvVersion2(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U16 tl
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp7__;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     tmp7__ = *pBuf;
     pBuf += 1;
     tlvlen -= 1;
@@ -1140,9 +1155,18 @@ tANI_U32 dot11fUnpackTlvExtendedListenTiming(tpAniSirGlobal pCtx, tANI_U8 *pBuf,
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     framesntohs(pCtx, &pDst->availibilityPeriod, pBuf, 0);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->availibilityInterval, pBuf, 0);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
@@ -1177,12 +1201,27 @@ tANI_U32 dot11fUnpackTlvListenChannel(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 3)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->countryString, pBuf, 3);
     pBuf += 3;
     tlvlen -= (tANI_U8)3;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->regulatoryClass = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->channel = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
@@ -1260,9 +1299,19 @@ tANI_U32 dot11fUnpackTlvNoticeOfAbsence(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     pDst->index = *pBuf;
     pBuf += 1;
-    tlvlen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1; 
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     pDst->CTSWindowOppPS = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
@@ -1286,12 +1335,27 @@ tANI_U32 dot11fUnpackTlvOperatingChannel(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tAN
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 3)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     DOT11F_MEMCPY(pCtx, pDst->countryString, pBuf, 3);
     pBuf += 3;
     tlvlen -= (tANI_U8)3;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     pDst->regulatoryClass = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     pDst->channel = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
@@ -1306,9 +1370,19 @@ tANI_U32 dot11fUnpackTlvP2PCapability(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     pDst->deviceCapability = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     pDst->groupCapability = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
@@ -1323,6 +1397,11 @@ tANI_U32 dot11fUnpackTlvP2PDeviceId(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U16
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 6)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     DOT11F_MEMCPY(pCtx, pDst->P2PDeviceAddress, pBuf, 6);
     pBuf += 6;
     tlvlen -= (tANI_U8)6;
@@ -1342,12 +1421,27 @@ tANI_U32 dot11fUnpackTlvP2PDeviceInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 6)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     DOT11F_MEMCPY(pCtx, pDst->P2PDeviceAddress, pBuf, 6);
     pBuf += 6;
     tlvlen -= (tANI_U8)6;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     framesntohs(pCtx, &pDst->configMethod, pBuf, 0);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 8)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     DOT11F_MEMCPY(pCtx, pDst->primaryDeviceType, pBuf, 8);
     pBuf += 8;
     tlvlen -= (tANI_U8)8;
@@ -1424,12 +1518,27 @@ tANI_U32 dot11fUnpackTlvPrimaryDeviceType(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     framesntohs(pCtx, &pDst->primary_category, pBuf, 1);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     DOT11F_MEMCPY(pCtx, pDst->oui, pBuf, 4);
     pBuf += 4;
     tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     framesntohs(pCtx, &pDst->sub_category, pBuf, 1);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
@@ -1447,12 +1556,27 @@ tANI_U32 dot11fUnpackTlvRequestDeviceType(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     framesntohs(pCtx, &pDst->primary_category, pBuf, 1);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     DOT11F_MEMCPY(pCtx, pDst->oui, pBuf, 4);
     pBuf += 4;
     tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     framesntohs(pCtx, &pDst->sub_category, pBuf, 1);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
@@ -1499,6 +1623,11 @@ tANI_U32 dot11fUnpackTlvUUID_E(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U16 tlvl
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 16)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     DOT11F_MEMCPY(pCtx, pDst->uuid, pBuf, 16);
     pBuf += 16;
     tlvlen -= (tANI_U8)16;
@@ -1513,6 +1642,11 @@ tANI_U32 dot11fUnpackTlvUUID_R(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U16 tlvl
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 16)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     DOT11F_MEMCPY(pCtx, pDst->uuid, pBuf, 16);
     pBuf += 16;
     tlvlen -= (tANI_U8)16;
@@ -1534,6 +1668,11 @@ tANI_U32 dot11fUnpackTlvVendorExtension(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 3)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     DOT11F_MEMCPY(pCtx, pDst->vendorId, pBuf, 3);
     pBuf += 3;
     tlvlen -= (tANI_U8)3;
@@ -1555,6 +1694,11 @@ tANI_U32 dot11fUnpackTlvVersion(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U16 tlv
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp8__;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+    
     tmp8__ = *pBuf;
     pBuf += 1;
     tlvlen -= 1;
@@ -1574,6 +1718,11 @@ tANI_U32 dot11fUnpackTlvP2PInterface(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U1
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     pDst->present = 1;
+	if (unlikely(tlvlen < 6)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->P2PDeviceAddress, pBuf, 6);
     pBuf += 6;
     tlvlen -= (tANI_U8)6;
@@ -1587,19 +1736,19 @@ tANI_U32 dot11fUnpackTlvP2PInterface(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U1
 #define SigTlvP2PManageability ( 0x002c )
 
 
-tANI_U32 dot11fUnpackIeAPName(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEAPName *pDst)
+tANI_U32 dot11fUnpackIeAPName(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEAPName *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_name = (tANI_U8)( ielen );
-    if (ielen > 32){
+    pDst->num_name = (tANI_U8)( tlvlen );
+    if (tlvlen > 32){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->name, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->name, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeAPName. */
@@ -1607,15 +1756,15 @@ tANI_U32 dot11fUnpackIeAPName(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
 #define SigIeAPName ( 0x0001 )
 
 
-tANI_U32 dot11fUnpackIeBPIndicator(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEBPIndicator *pDst)
+tANI_U32 dot11fUnpackIeBPIndicator(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEBPIndicator *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     pDst->indicator = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     pDst->type = *pBuf;
     (void)pCtx;
     return status;
@@ -1624,12 +1773,17 @@ tANI_U32 dot11fUnpackIeBPIndicator(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
 #define SigIeBPIndicator ( 0x0002 )
 
 
-tANI_U32 dot11fUnpackIeCondensedCountryStr(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIECondensedCountryStr *pDst)
+tANI_U32 dot11fUnpackIeCondensedCountryStr(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIECondensedCountryStr *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->countryStr, pBuf, 2);
     (void)pCtx;
     return status;
@@ -1638,31 +1792,46 @@ tANI_U32 dot11fUnpackIeCondensedCountryStr(tpAniSirGlobal pCtx, tANI_U8 *pBuf, t
 #define SigIeCondensedCountryStr ( 0x0003 )
 
 
-tANI_U32 dot11fUnpackIeGTK(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEGTK *pDst)
+tANI_U32 dot11fUnpackIeGTK(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEGTK *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U16 tmp9__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp9__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->keyId = tmp9__ >> 0 & 0x3;
     pDst->reserved = tmp9__ >> 2 & 0x3feb;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->keyLength = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 8)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->RSC, pBuf, 8);
     pBuf += 8;
-    ielen -= (tANI_U8)8;
-    pDst->num_key = (tANI_U8)( ielen );
-    if (ielen > 32){
+    tlvlen -= (tANI_U8)8;
+    pDst->num_key = (tANI_U8)( tlvlen );
+    if (tlvlen > 32){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->key, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->key, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeGTK. */
@@ -1673,21 +1842,41 @@ tANI_U32 dot11fUnpackIeGTK(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 #define SigIeHCF ( 0x0005 )
 
 
-tANI_U32 dot11fUnpackIeIGTK(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEIGTK *pDst)
+tANI_U32 dot11fUnpackIeIGTK(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEIGTK *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->keyID, pBuf, 2);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 6)) {
+		pDst->present = 0;
+		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->IPN, pBuf, 6);
     pBuf += 6;
-    ielen -= (tANI_U8)6;
+    tlvlen -= (tANI_U8)6;	
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
+
     pDst->keyLength = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 24)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     DOT11F_MEMCPY(pCtx, pDst->key, pBuf, 24);
     (void)pCtx;
     return status;
@@ -1696,10 +1885,10 @@ tANI_U32 dot11fUnpackIeIGTK(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, t
 #define SigIeIGTK ( 0x0006 )
 
 
-tANI_U32 dot11fUnpackIeLLAttr(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIELLAttr *pDst)
+tANI_U32 dot11fUnpackIeLLAttr(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIELLAttr *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     framesntohl(pCtx, &pDst->defer_threshold, pBuf, 1);
@@ -1710,15 +1899,15 @@ tANI_U32 dot11fUnpackIeLLAttr(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
 #define SigIeLLAttr ( 0x0007 )
 
 
-tANI_U32 dot11fUnpackIeLoadBalance(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIELoadBalance *pDst)
+tANI_U32 dot11fUnpackIeLoadBalance(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIELoadBalance *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     DOT11F_MEMCPY(pCtx, pDst->bssid, pBuf, 6);
     pBuf += 6;
-    ielen -= (tANI_U8)6;
+    tlvlen -= (tANI_U8)6;
     pDst->channel = *pBuf;
     (void)pCtx;
     return status;
@@ -1727,15 +1916,15 @@ tANI_U32 dot11fUnpackIeLoadBalance(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
 #define SigIeLoadBalance ( 0x0008 )
 
 
-tANI_U32 dot11fUnpackIeLoadInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIELoadInfo *pDst)
+tANI_U32 dot11fUnpackIeLoadInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIELoadInfo *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     framesntohs(pCtx, &pDst->num_stas, pBuf, 1);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     framesntohs(pCtx, &pDst->channel_util, pBuf, 1);
     (void)pCtx;
     return status;
@@ -1747,10 +1936,10 @@ tANI_U32 dot11fUnpackIeLoadInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iele
 #define SigIePropAssocType ( 0x000a )
 
 
-tANI_U32 dot11fUnpackIePropCapability(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEPropCapability *pDst)
+tANI_U32 dot11fUnpackIePropCapability(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEPropCapability *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     framesntohs(pCtx, &pDst->capability, pBuf, 0);
@@ -1761,21 +1950,21 @@ tANI_U32 dot11fUnpackIePropCapability(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 #define SigIePropCapability ( 0x000b )
 
 
-tANI_U32 dot11fUnpackIePropChannSwitchAnn(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEPropChannSwitchAnn *pDst)
+tANI_U32 dot11fUnpackIePropChannSwitchAnn(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEPropChannSwitchAnn *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     pDst->mode = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     pDst->primary_channel = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     pDst->sub_band = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     pDst->channel_switch_count = *pBuf;
     (void)pCtx;
     return status;
@@ -1784,7 +1973,7 @@ tANI_U32 dot11fUnpackIePropChannSwitchAnn(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 #define SigIePropChannSwitchAnn ( 0x000c )
 
 
-tANI_U32 dot11fUnpackIePropEDCAParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEPropEDCAParams *pDst)
+tANI_U32 dot11fUnpackIePropEDCAParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEPropEDCAParams *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp10__;
@@ -1795,70 +1984,70 @@ tANI_U32 dot11fUnpackIePropEDCAParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
     tANI_U8 tmp15__;
     tANI_U8 tmp16__;
     tANI_U8 tmp17__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     pDst->qos = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     pDst->reserved = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     tmp10__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbe_aifsn = tmp10__ >> 0 & 0xf;
     pDst->acbe_acm = tmp10__ >> 4 & 0x1;
     pDst->acbe_aci = tmp10__ >> 5 & 0x3;
     pDst->unused1 = tmp10__ >> 7 & 0x1;
     tmp11__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbe_min = tmp11__ >> 0 & 0xf;
     pDst->acbe_max = tmp11__ >> 4 & 0xf;
     framesntohs(pCtx, &pDst->acbe_txoplimit, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     tmp12__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbk_aifsn = tmp12__ >> 0 & 0xf;
     pDst->acbk_acm = tmp12__ >> 4 & 0x1;
     pDst->acbk_aci = tmp12__ >> 5 & 0x3;
     pDst->unused2 = tmp12__ >> 7 & 0x1;
     tmp13__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbk_min = tmp13__ >> 0 & 0xf;
     pDst->acbk_max = tmp13__ >> 4 & 0xf;
     framesntohs(pCtx, &pDst->acbk_txoplimit, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     tmp14__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvi_aifsn = tmp14__ >> 0 & 0xf;
     pDst->acvi_acm = tmp14__ >> 4 & 0x1;
     pDst->acvi_aci = tmp14__ >> 5 & 0x3;
     pDst->unused3 = tmp14__ >> 7 & 0x1;
     tmp15__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvi_min = tmp15__ >> 0 & 0xf;
     pDst->acvi_max = tmp15__ >> 4 & 0xf;
     framesntohs(pCtx, &pDst->acvi_txoplimit, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     tmp16__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvo_aifsn = tmp16__ >> 0 & 0xf;
     pDst->acvo_acm = tmp16__ >> 4 & 0x1;
     pDst->acvo_aci = tmp16__ >> 5 & 0x3;
     pDst->unused4 = tmp16__ >> 7 & 0x1;
     tmp17__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvo_min = tmp17__ >> 0 & 0xf;
     pDst->acvo_max = tmp17__ >> 4 & 0xf;
     framesntohs(pCtx, &pDst->acvo_txoplimit, pBuf, 0);
@@ -1869,21 +2058,21 @@ tANI_U32 dot11fUnpackIePropEDCAParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 #define SigIePropEDCAParams ( 0x000d )
 
 
-tANI_U32 dot11fUnpackIePropQuietBSS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEPropQuietBSS *pDst)
+tANI_U32 dot11fUnpackIePropQuietBSS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEPropQuietBSS *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     pDst->quiet_count = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     pDst->quiet_period = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     framesntohs(pCtx, &pDst->quiet_duration, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     framesntohs(pCtx, &pDst->quiet_offset, pBuf, 0);
     (void)pCtx;
     return status;
@@ -1892,15 +2081,15 @@ tANI_U32 dot11fUnpackIePropQuietBSS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 
 #define SigIePropQuietBSS ( 0x000e )
 
 
-tANI_U32 dot11fUnpackIePropSuppRates(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEPropSuppRates *pDst)
+tANI_U32 dot11fUnpackIePropSuppRates(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEPropSuppRates *pDst)
 {
     tANI_U8 i;
     tANI_U8 rate_indx = 0;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    for (i = 0; i < ielen; i++) {
+    for (i = 0; i < tlvlen; i++) {
         if ((DOT11F_IS_BG_RATE(pBuf[i] & 0x7F)) &&
             (rate_indx < 12)) {
             pDst->rates[rate_indx++] = pBuf[i];
@@ -1920,19 +2109,19 @@ tANI_U32 dot11fUnpackIePropSuppRates(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIePropSuppRates ( 0x000f )
 
 
-tANI_U32 dot11fUnpackIeR0KH_ID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIER0KH_ID *pDst)
+tANI_U32 dot11fUnpackIeR0KH_ID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIER0KH_ID *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_PMK_R0_ID = (tANI_U8)( ielen );
-    if (ielen > 48){
+    pDst->num_PMK_R0_ID = (tANI_U8)( tlvlen );
+    if (tlvlen > 48){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->PMK_R0_ID, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->PMK_R0_ID, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeR0KH_ID. */
@@ -1940,10 +2129,10 @@ tANI_U32 dot11fUnpackIeR0KH_ID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeR0KH_ID ( 0x0010 )
 
 
-tANI_U32 dot11fUnpackIeR1KH_ID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIER1KH_ID *pDst)
+tANI_U32 dot11fUnpackIeR1KH_ID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIER1KH_ID *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     DOT11F_MEMCPY(pCtx, pDst->PMK_R1_ID, pBuf, 6);
@@ -1954,15 +2143,25 @@ tANI_U32 dot11fUnpackIeR1KH_ID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeR1KH_ID ( 0x0011 )
 
 
-tANI_U32 dot11fUnpackIeTSFInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETSFInfo *pDst)
+tANI_U32 dot11fUnpackIeTSFInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETSFInfo *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->TsfOffset, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->BeaconIntvl, pBuf, 0);
     (void)pCtx;
     return status;
@@ -1971,19 +2170,19 @@ tANI_U32 dot11fUnpackIeTSFInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeTSFInfo ( 0x0012 )
 
 
-tANI_U32 dot11fUnpackIeTaurus(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETaurus *pDst)
+tANI_U32 dot11fUnpackIeTaurus(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETaurus *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U16 tmp18__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     framesntohs(pCtx, &pDst->baTIDBitmap, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     framesntohs(pCtx, &pDst->baPolicy, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     framesntohs(pCtx, &tmp18__, pBuf, 0);
     pDst->baBufferSize = tmp18__ >> 0 & 0xfff;
     pDst->rsvd = tmp18__ >> 12 & 0xf;
@@ -1994,21 +2193,21 @@ tANI_U32 dot11fUnpackIeTaurus(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
 #define SigIeTaurus ( 0x0013 )
 
 
-tANI_U32 dot11fUnpackIeTitan(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETitan *pDst)
+tANI_U32 dot11fUnpackIeTitan(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETitan *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     pDst->concat_tcid_bitmap = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     pDst->compression_tcid_bitmap = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     pDst->cb_state = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     pDst->rev_fcs_state = *pBuf;
     (void)pCtx;
     return status;
@@ -2020,25 +2219,25 @@ tANI_U32 dot11fUnpackIeTitan(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, 
 #define SigIeTriggerStaBgScan ( 0x0015 )
 
 
-tANI_U32 dot11fUnpackIeVersion(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEVersion *pDst)
+tANI_U32 dot11fUnpackIeVersion(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEVersion *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     framesntohl(pCtx, &pDst->chip_rev, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
     pDst->card_type = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    pDst->num_build_version = (tANI_U8)( ielen );
-    if (ielen > 20){
+    tlvlen -= (tANI_U8)1;
+    pDst->num_build_version = (tANI_U8)( tlvlen );
+    if (tlvlen > 20){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->build_version, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->build_version, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeVersion. */
@@ -2046,19 +2245,19 @@ tANI_U32 dot11fUnpackIeVersion(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeVersion ( 0x0016 )
 
 
-tANI_U32 dot11fUnpackIeWDS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWDS *pDst)
+tANI_U32 dot11fUnpackIeWDS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWDS *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_wdsData = (tANI_U8)( ielen );
-    if (ielen > 64){
+    pDst->num_wdsData = (tANI_U8)( tlvlen );
+    if (tlvlen > 64){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->wdsData, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->wdsData, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeWDS. */
@@ -2066,22 +2265,27 @@ tANI_U32 dot11fUnpackIeWDS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 #define SigIeWDS ( 0x0017 )
 
 
-tANI_U32 dot11fUnpackIeAPChannelReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEAPChannelReport *pDst)
+tANI_U32 dot11fUnpackIeAPChannelReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEAPChannelReport *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->regulatoryClass = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    pDst->num_channelList = (tANI_U8)( ielen );
-    if (ielen > 50){
+    tlvlen -= (tANI_U8)1;
+    pDst->num_channelList = (tANI_U8)( tlvlen );
+    if (tlvlen > 50){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->channelList, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->channelList, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeAPChannelReport. */
@@ -2089,12 +2293,17 @@ tANI_U32 dot11fUnpackIeAPChannelReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_
 #define SigIeAPChannelReport ( 0x0018 )
 
 
-tANI_U32 dot11fUnpackIeBcnReportingDetail(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEBcnReportingDetail *pDst)
+tANI_U32 dot11fUnpackIeBcnReportingDetail(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEBcnReportingDetail *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->reportingDetail = *pBuf;
     (void)pCtx;
     return status;
@@ -2103,19 +2312,19 @@ tANI_U32 dot11fUnpackIeBcnReportingDetail(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 #define SigIeBcnReportingDetail ( 0x0019 )
 
 
-tANI_U32 dot11fUnpackIeBeaconReportFrmBody(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEBeaconReportFrmBody *pDst)
+tANI_U32 dot11fUnpackIeBeaconReportFrmBody(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEBeaconReportFrmBody *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_reportedFields = (tANI_U8)( ielen );
-    if (ielen > 224){
+    pDst->num_reportedFields = (tANI_U8)( tlvlen );
+    if (tlvlen > 224){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->reportedFields, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->reportedFields, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeBeaconReportFrmBody. */
@@ -2123,15 +2332,25 @@ tANI_U32 dot11fUnpackIeBeaconReportFrmBody(tpAniSirGlobal pCtx, tANI_U8 *pBuf, t
 #define SigIeBeaconReportFrmBody ( 0x001a )
 
 
-tANI_U32 dot11fUnpackIeBeaconReporting(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEBeaconReporting *pDst)
+tANI_U32 dot11fUnpackIeBeaconReporting(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEBeaconReporting *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->reportingCondition = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->threshold = *pBuf;
     (void)pCtx;
     return status;
@@ -2140,17 +2359,22 @@ tANI_U32 dot11fUnpackIeBeaconReporting(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_
 #define SigIeBeaconReporting ( 0x001b )
 
 
-tANI_U32 dot11fUnpackIeMeasurementPilot(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEMeasurementPilot *pDst)
+tANI_U32 dot11fUnpackIeMeasurementPilot(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEMeasurementPilot *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->measurementPilot = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    pDst->num_vendorSpecific = (tANI_U8)( ielen );
-    DOT11F_MEMCPY(pCtx, pDst->vendorSpecific, pBuf, ( ielen ) );
+    tlvlen -= (tANI_U8)1;
+    pDst->num_vendorSpecific = (tANI_U8)( tlvlen );
+    DOT11F_MEMCPY(pCtx, pDst->vendorSpecific, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeMeasurementPilot. */
@@ -2158,17 +2382,22 @@ tANI_U32 dot11fUnpackIeMeasurementPilot(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI
 #define SigIeMeasurementPilot ( 0x001c )
 
 
-tANI_U32 dot11fUnpackIeMultiBssid(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEMultiBssid *pDst)
+tANI_U32 dot11fUnpackIeMultiBssid(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEMultiBssid *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->maxBSSIDIndicator = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    pDst->num_vendorSpecific = (tANI_U8)( ielen );
-    DOT11F_MEMCPY(pCtx, pDst->vendorSpecific, pBuf, ( ielen ) );
+    tlvlen -= (tANI_U8)1;
+    pDst->num_vendorSpecific = (tANI_U8)( tlvlen );
+    DOT11F_MEMCPY(pCtx, pDst->vendorSpecific, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeMultiBssid. */
@@ -2176,18 +2405,33 @@ tANI_U32 dot11fUnpackIeMultiBssid(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ie
 #define SigIeMultiBssid ( 0x001d )
 
 
-tANI_U32 dot11fUnpackIeRICData(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIERICData *pDst)
+tANI_U32 dot11fUnpackIeRICData(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIERICData *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->Identifier = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->resourceDescCount = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->statusCode, pBuf, 0);
     (void)pCtx;
     return status;
@@ -2196,17 +2440,22 @@ tANI_U32 dot11fUnpackIeRICData(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeRICData ( 0x001e )
 
 
-tANI_U32 dot11fUnpackIeRICDescriptor(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIERICDescriptor *pDst)
+tANI_U32 dot11fUnpackIeRICDescriptor(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIERICDescriptor *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->resourceType = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    pDst->num_variableData = (tANI_U8)( ielen );
-    DOT11F_MEMCPY(pCtx, pDst->variableData, pBuf, ( ielen ) );
+    tlvlen -= (tANI_U8)1;
+    pDst->num_variableData = (tANI_U8)( tlvlen );
+    DOT11F_MEMCPY(pCtx, pDst->variableData, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeRICDescriptor. */
@@ -2214,7 +2463,7 @@ tANI_U32 dot11fUnpackIeRICDescriptor(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIeRICDescriptor ( 0x001f )
 
 
-tANI_U32 dot11fUnpackIeRRMEnabledCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIERRMEnabledCap *pDst)
+tANI_U32 dot11fUnpackIeRRMEnabledCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIERRMEnabledCap *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp19__;
@@ -2222,12 +2471,17 @@ tANI_U32 dot11fUnpackIeRRMEnabledCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
     tANI_U8 tmp21__;
     tANI_U8 tmp22__;
     tANI_U8 tmp23__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp19__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->LinkMeasurement = tmp19__ >> 0 & 0x1;
     pDst->NeighborRpt = tmp19__ >> 1 & 0x1;
     pDst->parallel = tmp19__ >> 2 & 0x1;
@@ -2236,9 +2490,14 @@ tANI_U32 dot11fUnpackIeRRMEnabledCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
     pDst->BeaconActive = tmp19__ >> 5 & 0x1;
     pDst->BeaconTable = tmp19__ >> 6 & 0x1;
     pDst->BeaconRepCond = tmp19__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp20__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->FrameMeasurement = tmp20__ >> 0 & 0x1;
     pDst->ChannelLoad = tmp20__ >> 1 & 0x1;
     pDst->NoiseHistogram = tmp20__ >> 2 & 0x1;
@@ -2247,22 +2506,37 @@ tANI_U32 dot11fUnpackIeRRMEnabledCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
     pDst->LCIAzimuth = tmp20__ >> 5 & 0x1;
     pDst->TCMCapability = tmp20__ >> 6 & 0x1;
     pDst->triggeredTCM = tmp20__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp21__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->APChanReport = tmp21__ >> 0 & 0x1;
     pDst->RRMMIBEnabled = tmp21__ >> 1 & 0x1;
     pDst->operatingChanMax = tmp21__ >> 2 & 0x7;
     pDst->nonOperatinChanMax = tmp21__ >> 5 & 0x7;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp22__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->MeasurementPilot = tmp22__ >> 0 & 0x7;
     pDst->MeasurementPilotEnabled = tmp22__ >> 3 & 0x1;
     pDst->NeighborTSFOffset = tmp22__ >> 4 & 0x1;
     pDst->RCPIMeasurement = tmp22__ >> 5 & 0x1;
     pDst->RSNIMeasurement = tmp22__ >> 6 & 0x1;
     pDst->BssAvgAccessDelay = tmp22__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp23__ = *pBuf;
     pDst->BSSAvailAdmission = tmp23__ >> 0 & 0x1;
     pDst->AntennaInformation = tmp23__ >> 1 & 0x1;
@@ -2274,14 +2548,14 @@ tANI_U32 dot11fUnpackIeRRMEnabledCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIeRRMEnabledCap ( 0x0020 )
 
 
-tANI_U32 dot11fUnpackIeRequestedInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIERequestedInfo *pDst)
+tANI_U32 dot11fUnpackIeRequestedInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIERequestedInfo *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_requested_eids = (tANI_U8)( ielen );
-    DOT11F_MEMCPY(pCtx, pDst->requested_eids, pBuf, ( ielen ) );
+    pDst->num_requested_eids = (tANI_U8)( tlvlen );
+    DOT11F_MEMCPY(pCtx, pDst->requested_eids, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeRequestedInfo. */
@@ -2289,23 +2563,23 @@ tANI_U32 dot11fUnpackIeRequestedInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIeRequestedInfo ( 0x0021 )
 
 
-tANI_U32 dot11fUnpackIeSSID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIESSID *pDst)
+tANI_U32 dot11fUnpackIeSSID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIESSID *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present)
     {
         status = DOT11F_DUPLICATE_IE;
         return status;
     }
     pDst->present = 1;
-    pDst->num_ssid = (tANI_U8)( ielen );
-    if (ielen > 32){
+    pDst->num_ssid = (tANI_U8)( tlvlen );
+    if (tlvlen > 32){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->ssid, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->ssid, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeSSID. */
@@ -2313,29 +2587,54 @@ tANI_U32 dot11fUnpackIeSSID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, t
 #define SigIeSSID ( 0x0022 )
 
 
-tANI_U32 dot11fUnpackIeSchedule(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIESchedule *pDst)
+tANI_U32 dot11fUnpackIeSchedule(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIESchedule *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U16 tmp24__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp24__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->aggregation = tmp24__ >> 0 & 0x1;
     pDst->tsid = tmp24__ >> 1 & 0xf;
     pDst->direction = tmp24__ >> 5 & 0x3;
     pDst->reserved = tmp24__ >> 7 & 0x1ff;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->service_start_time, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->service_interval, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->max_service_dur, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->spec_interval, pBuf, 0);
     (void)pCtx;
     return status;
@@ -2344,86 +2643,186 @@ tANI_U32 dot11fUnpackIeSchedule(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iele
 #define SigIeSchedule ( 0x0023 )
 
 
-tANI_U32 dot11fUnpackIeTCLAS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETCLAS *pDst)
+tANI_U32 dot11fUnpackIeTCLAS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETCLAS *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->user_priority = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->classifier_type = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->classifier_mask = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     switch (pDst->classifier_type)
     {
         case 0:
+		if (unlikely(tlvlen < 6)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             DOT11F_MEMCPY(pCtx, pDst->info.EthParams.source, pBuf, 6);
             pBuf += 6;
-            ielen -= (tANI_U8)6;
+            tlvlen -= (tANI_U8)6;
+		if (unlikely(tlvlen < 6)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             DOT11F_MEMCPY(pCtx, pDst->info.EthParams.dest, pBuf, 6);
             pBuf += 6;
-            ielen -= (tANI_U8)6;
+            tlvlen -= (tANI_U8)6;
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             framesntohs(pCtx, &pDst->info.EthParams.type, pBuf, 0);
             pBuf += 2;
-            ielen -= (tANI_U8)2;
+            tlvlen -= (tANI_U8)2;
         break;
         case 1:
+		if (unlikely(tlvlen < 1)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             pDst->info.IpParams.version = *pBuf;
             pBuf += 1;
-            ielen -= (tANI_U8)1;
+            tlvlen -= (tANI_U8)1;
             switch (pDst->info.IpParams.version)
             {
                 case 4:
+			if (unlikely(tlvlen < 4)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV4Params.source, pBuf, 4);
                     pBuf += 4;
-                    ielen -= (tANI_U8)4;
+                    tlvlen -= (tANI_U8)4;
+			if (unlikely(tlvlen < 4)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV4Params.dest, pBuf, 4);
                     pBuf += 4;
-                    ielen -= (tANI_U8)4;
+                    tlvlen -= (tANI_U8)4;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     framesntohs(pCtx, &pDst->info.IpParams.params.IpV4Params.src_port, pBuf, 0);
                     pBuf += 2;
-                    ielen -= (tANI_U8)2;
+                    tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     framesntohs(pCtx, &pDst->info.IpParams.params.IpV4Params.dest_port, pBuf, 0);
                     pBuf += 2;
-                    ielen -= (tANI_U8)2;
+                    tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     pDst->info.IpParams.params.IpV4Params.DSCP = *pBuf;
                     pBuf += 1;
-                    ielen -= (tANI_U8)1;
+                    tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     pDst->info.IpParams.params.IpV4Params.proto = *pBuf;
                     pBuf += 1;
-                    ielen -= (tANI_U8)1;
+                    tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     pDst->info.IpParams.params.IpV4Params.reserved = *pBuf;
                     pBuf += 1;
-                    ielen -= (tANI_U8)1;
+                    tlvlen -= (tANI_U8)1;
                 break;
                 case 6:
+			if (unlikely(tlvlen < 16)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV6Params.source, pBuf, 16);
                     pBuf += 16;
-                    ielen -= (tANI_U8)16;
+                    tlvlen -= (tANI_U8)16;
+			if (unlikely(tlvlen < 16)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV6Params.dest, pBuf, 16);
                     pBuf += 16;
-                    ielen -= (tANI_U8)16;
+                    tlvlen -= (tANI_U8)16;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     framesntohs(pCtx, &pDst->info.IpParams.params.IpV6Params.src_port, pBuf, 0);
                     pBuf += 2;
-                    ielen -= (tANI_U8)2;
+                    tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     framesntohs(pCtx, &pDst->info.IpParams.params.IpV6Params.dest_port, pBuf, 0);
                     pBuf += 2;
-                    ielen -= (tANI_U8)2;
+                    tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 3)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV6Params.flow_label, pBuf, 3);
                     pBuf += 3;
-                    ielen -= (tANI_U8)3;
+                    tlvlen -= (tANI_U8)3;
                 break;
             }
         break;
         case 2:
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             framesntohs(pCtx, &pDst->info.Params8021dq.tag_type, pBuf, 0);
             pBuf += 2;
-            ielen -= (tANI_U8)2;
+            tlvlen -= (tANI_U8)2;
         break;
     }
     (void)pCtx;
@@ -2436,12 +2835,17 @@ tANI_U32 dot11fUnpackIeTCLAS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, 
 #define SigIeTCLASSPROC ( 0x0025 )
 
 
-tANI_U32 dot11fUnpackIeTSDelay(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETSDelay *pDst)
+tANI_U32 dot11fUnpackIeTSDelay(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETSDelay *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->delay, pBuf, 0);
     (void)pCtx;
     return status;
@@ -2450,18 +2854,23 @@ tANI_U32 dot11fUnpackIeTSDelay(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeTSDelay ( 0x0026 )
 
 
-tANI_U32 dot11fUnpackIeTSPEC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETSPEC *pDst)
+tANI_U32 dot11fUnpackIeTSPEC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETSPEC *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U16 tmp25__;
     tANI_U8 tmp26__;
     tANI_U16 tmp27__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp25__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->traffic_type = tmp25__ >> 0 & 0x1;
     pDst->tsid = tmp25__ >> 1 & 0xf;
     pDst->direction = tmp25__ >> 5 & 0x3;
@@ -2470,55 +2879,135 @@ tANI_U32 dot11fUnpackIeTSPEC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, 
     pDst->psb = tmp25__ >> 10 & 0x1;
     pDst->user_priority = tmp25__ >> 11 & 0x7;
     pDst->tsinfo_ack_pol = tmp25__ >> 14 & 0x3;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp26__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->schedule = tmp26__ >> 0 & 0x1;
     pDst->unused = tmp26__ >> 1 & 0x7f;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp27__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->size = tmp27__ >> 0 & 0x7fff;
     pDst->fixed = tmp27__ >> 15 & 0x1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->max_msdu_size, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->min_service_int, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->max_service_int, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->inactivity_int, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->suspension_int, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->service_start_time, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->min_data_rate, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->mean_data_rate, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->peak_data_rate, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->burst_size, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->delay_bound, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->min_phy_rate, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->surplus_bw_allowance, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->medium_time, pBuf, 0);
     (void)pCtx;
     return status;
@@ -2527,37 +3016,67 @@ tANI_U32 dot11fUnpackIeTSPEC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, 
 #define SigIeTSPEC ( 0x0027 )
 
 
-tANI_U32 dot11fUnpackIeWMMSchedule(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWMMSchedule *pDst)
+tANI_U32 dot11fUnpackIeWMMSchedule(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWMMSchedule *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U16 tmp28__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
             return ( status | DOT11F_BAD_FIXED_VALUE );
     }
+
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     framesntohs(pCtx, &tmp28__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->aggregation = tmp28__ >> 0 & 0x1;
     pDst->tsid = tmp28__ >> 1 & 0xf;
     pDst->direction = tmp28__ >> 5 & 0x3;
     pDst->reserved = tmp28__ >> 7 & 0x1ff;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->service_start_time, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->service_interval, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->max_service_dur, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->spec_interval, pBuf, 0);
     (void)pCtx;
     return status;
@@ -2566,94 +3085,198 @@ tANI_U32 dot11fUnpackIeWMMSchedule(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
 #define SigIeWMMSchedule ( 0x0028 )
 
 
-tANI_U32 dot11fUnpackIeWMMTCLAS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWMMTCLAS *pDst)
+tANI_U32 dot11fUnpackIeWMMTCLAS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWMMTCLAS *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
             return ( status | DOT11F_BAD_FIXED_VALUE );
     }
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     pDst->user_priority = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->classifier_type = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->classifier_mask = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     switch (pDst->classifier_type)
     {
         case 0:
+		if (unlikely(tlvlen < 6)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             DOT11F_MEMCPY(pCtx, pDst->info.EthParams.source, pBuf, 6);
             pBuf += 6;
-            ielen -= (tANI_U8)6;
+            tlvlen -= (tANI_U8)6;
+		if (unlikely(tlvlen < 6)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             DOT11F_MEMCPY(pCtx, pDst->info.EthParams.dest, pBuf, 6);
             pBuf += 6;
-            ielen -= (tANI_U8)6;
+            tlvlen -= (tANI_U8)6;
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             framesntohs(pCtx, &pDst->info.EthParams.type, pBuf, 0);
             pBuf += 2;
-            ielen -= (tANI_U8)2;
+            tlvlen -= (tANI_U8)2;
         break;
         case 1:
+		if (unlikely(tlvlen < 1)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             pDst->info.IpParams.version = *pBuf;
             pBuf += 1;
-            ielen -= (tANI_U8)1;
+            tlvlen -= (tANI_U8)1;
             switch (pDst->info.IpParams.version)
             {
                 case 4:
+			if (unlikely(tlvlen < 4)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV4Params.source, pBuf, 4);
                     pBuf += 4;
-                    ielen -= (tANI_U8)4;
+                    tlvlen -= (tANI_U8)4;
+			if (unlikely(tlvlen < 4)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV4Params.dest, pBuf, 4);
                     pBuf += 4;
-                    ielen -= (tANI_U8)4;
+                    tlvlen -= (tANI_U8)4;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     framesntohs(pCtx, &pDst->info.IpParams.params.IpV4Params.src_port, pBuf, 0);
                     pBuf += 2;
-                    ielen -= (tANI_U8)2;
+                    tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     framesntohs(pCtx, &pDst->info.IpParams.params.IpV4Params.dest_port, pBuf, 0);
                     pBuf += 2;
-                    ielen -= (tANI_U8)2;
+                    tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     pDst->info.IpParams.params.IpV4Params.DSCP = *pBuf;
                     pBuf += 1;
-                    ielen -= (tANI_U8)1;
+                    tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     pDst->info.IpParams.params.IpV4Params.proto = *pBuf;
                     pBuf += 1;
-                    ielen -= (tANI_U8)1;
+                    tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     pDst->info.IpParams.params.IpV4Params.reserved = *pBuf;
                     pBuf += 1;
-                    ielen -= (tANI_U8)1;
+                    tlvlen -= (tANI_U8)1;
                 break;
                 case 6:
+			if (unlikely(tlvlen < 16)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV6Params.source, pBuf, 16);
                     pBuf += 16;
-                    ielen -= (tANI_U8)16;
+                    tlvlen -= (tANI_U8)16;
+			if (unlikely(tlvlen < 16)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV6Params.dest, pBuf, 16);
                     pBuf += 16;
-                    ielen -= (tANI_U8)16;
+                    tlvlen -= (tANI_U8)16;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     framesntohs(pCtx, &pDst->info.IpParams.params.IpV6Params.src_port, pBuf, 0);
                     pBuf += 2;
-                    ielen -= (tANI_U8)2;
+                    tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     framesntohs(pCtx, &pDst->info.IpParams.params.IpV6Params.dest_port, pBuf, 0);
                     pBuf += 2;
-                    ielen -= (tANI_U8)2;
+                    tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 3)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                     DOT11F_MEMCPY(pCtx, pDst->info.IpParams.params.IpV6Params.flow_label, pBuf, 3);
                     pBuf += 3;
-                    ielen -= (tANI_U8)3;
+                    tlvlen -= (tANI_U8)3;
                 break;
             }
         break;
         case 2:
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             framesntohs(pCtx, &pDst->info.Params8021dq.tag_type, pBuf, 0);
             pBuf += 2;
-            ielen -= (tANI_U8)2;
+            tlvlen -= (tANI_U8)2;
         break;
     }
     (void)pCtx;
@@ -2663,20 +3286,30 @@ tANI_U32 dot11fUnpackIeWMMTCLAS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iele
 #define SigIeWMMTCLAS ( 0x0029 )
 
 
-tANI_U32 dot11fUnpackIeWMMTCLASPROC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWMMTCLASPROC *pDst)
+tANI_U32 dot11fUnpackIeWMMTCLASPROC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWMMTCLASPROC *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
             return ( status | DOT11F_BAD_FIXED_VALUE );
     }
+
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     pDst->processing = *pBuf;
     (void)pCtx;
     return status;
@@ -2685,20 +3318,30 @@ tANI_U32 dot11fUnpackIeWMMTCLASPROC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 
 #define SigIeWMMTCLASPROC ( 0x002a )
 
 
-tANI_U32 dot11fUnpackIeWMMTSDelay(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWMMTSDelay *pDst)
+tANI_U32 dot11fUnpackIeWMMTSDelay(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWMMTSDelay *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
             return ( status | DOT11F_BAD_FIXED_VALUE );
     }
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->delay, pBuf, 0);
     (void)pCtx;
     return status;
@@ -2707,26 +3350,36 @@ tANI_U32 dot11fUnpackIeWMMTSDelay(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ie
 #define SigIeWMMTSDelay ( 0x002b )
 
 
-tANI_U32 dot11fUnpackIeWMMTSPEC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWMMTSPEC *pDst)
+tANI_U32 dot11fUnpackIeWMMTSPEC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWMMTSPEC *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U16 tmp29__;
     tANI_U8 tmp30__;
     tANI_U16 tmp31__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
             return ( status | DOT11F_BAD_FIXED_VALUE );
     }
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp29__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->traffic_type = tmp29__ >> 0 & 0x1;
     pDst->tsid = tmp29__ >> 1 & 0xf;
     pDst->direction = tmp29__ >> 5 & 0x3;
@@ -2735,55 +3388,135 @@ tANI_U32 dot11fUnpackIeWMMTSPEC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iele
     pDst->psb = tmp29__ >> 10 & 0x1;
     pDst->user_priority = tmp29__ >> 11 & 0x7;
     pDst->tsinfo_ack_pol = tmp29__ >> 14 & 0x3;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp30__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->tsinfo_rsvd = tmp30__ >> 0 & 0x7f;
     pDst->burst_size_defn = tmp30__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp31__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->size = tmp31__ >> 0 & 0x7fff;
     pDst->fixed = tmp31__ >> 15 & 0x1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->max_msdu_size, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->min_service_int, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->max_service_int, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->inactivity_int, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->suspension_int, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->service_start_time, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->min_data_rate, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->mean_data_rate, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->peak_data_rate, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->burst_size, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->delay_bound, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &pDst->min_phy_rate, pBuf, 0);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->surplus_bw_allowance, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->medium_time, pBuf, 0);
     (void)pCtx;
     return status;
@@ -2792,12 +3525,17 @@ tANI_U32 dot11fUnpackIeWMMTSPEC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iele
 #define SigIeWMMTSPEC ( 0x002c )
 
 
-tANI_U32 dot11fUnpackIeAID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEAID *pDst)
+tANI_U32 dot11fUnpackIeAID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEAID *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->assocId, pBuf, 0);
     (void)pCtx;
     return status;
@@ -2831,16 +3569,16 @@ tANI_U32 dot11fUnpackIeAID(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
         {0, 0, 0, NULL, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0xff, 0, },
     };
 
-tANI_U32 dot11fUnpackIeAirgo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEAirgo *pDst)
+tANI_U32 dot11fUnpackIeAirgo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEAirgo *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     (void)pCtx;
     status |= UnpackCore(pCtx,
                      pBuf,
-                     ielen,
+                     tlvlen,
                      FFS_Airgo,
                      IES_Airgo,
                      ( tANI_U8* )pDst,
@@ -2851,21 +3589,41 @@ tANI_U32 dot11fUnpackIeAirgo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, 
 #define SigIeAirgo ( 0x002e )
 
 
-tANI_U32 dot11fUnpackIeCFParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIECFParams *pDst)
+tANI_U32 dot11fUnpackIeCFParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIECFParams *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->cfp_count = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->cfp_period = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->cfp_maxduration, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->cfp_durremaining, pBuf, 0);
     (void)pCtx;
     return status;
@@ -2874,19 +3632,19 @@ tANI_U32 dot11fUnpackIeCFParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iele
 #define SigIeCFParams ( 0x002f )
 
 
-tANI_U32 dot11fUnpackIeChallengeText(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEChallengeText *pDst)
+tANI_U32 dot11fUnpackIeChallengeText(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEChallengeText *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_text = (tANI_U8)( ielen );
-    if (ielen > 253){
+    pDst->num_text = (tANI_U8)( tlvlen );
+    if (tlvlen > 253){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->text, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->text, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeChallengeText. */
@@ -2894,18 +3652,33 @@ tANI_U32 dot11fUnpackIeChallengeText(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIeChallengeText ( 0x0030 )
 
 
-tANI_U32 dot11fUnpackIeChanSwitchAnn(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEChanSwitchAnn *pDst)
+tANI_U32 dot11fUnpackIeChanSwitchAnn(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEChanSwitchAnn *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->switchMode = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->newChannel = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->switchCount = *pBuf;
     (void)pCtx;
     return status;
@@ -2914,29 +3687,34 @@ tANI_U32 dot11fUnpackIeChanSwitchAnn(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIeChanSwitchAnn ( 0x0031 )
 
 
-tANI_U32 dot11fUnpackIeCountry(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIECountry *pDst)
+tANI_U32 dot11fUnpackIeCountry(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIECountry *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 3)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->country, pBuf, 3);
     pBuf += 3;
-    ielen -= (tANI_U8)3;
-    if ( ! ielen )
+    tlvlen -= (tANI_U8)3;
+    if ( ! tlvlen )
     {
         pDst->num_triplets = 0U;
         return 0U;
     }
     else
     {
-        pDst->num_triplets = (tANI_U8)( ielen / 3 );
-        if (ielen > 84 * 3){
+        pDst->num_triplets = (tANI_U8)( tlvlen / 3 );
+        if (tlvlen > 84 * 3){
                 pDst->present = 0;
                 return DOT11F_SKIPPED_BAD_IE;
         }
 
-        DOT11F_MEMCPY(pCtx, pDst->triplets, pBuf, ( ielen ) );
+        DOT11F_MEMCPY(pCtx, pDst->triplets, pBuf, ( tlvlen ) );
     }
     (void)pCtx;
     return status;
@@ -2948,7 +3726,7 @@ tANI_U32 dot11fUnpackIeCountry(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeDSParams ( 0x0033 )
 
 
-tANI_U32 dot11fUnpackIeEDCAParamSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEEDCAParamSet *pDst)
+tANI_U32 dot11fUnpackIeEDCAParamSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEEDCAParamSet *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp32__;
@@ -2959,72 +3737,141 @@ tANI_U32 dot11fUnpackIeEDCAParamSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 
     tANI_U8 tmp37__;
     tANI_U8 tmp38__;
     tANI_U8 tmp39__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->qos = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->reserved = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp32__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbe_aifsn = tmp32__ >> 0 & 0xf;
     pDst->acbe_acm = tmp32__ >> 4 & 0x1;
     pDst->acbe_aci = tmp32__ >> 5 & 0x3;
     pDst->unused1 = tmp32__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp33__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbe_acwmin = tmp33__ >> 0 & 0xf;
     pDst->acbe_acwmax = tmp33__ >> 4 & 0xf;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->acbe_txoplimit, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp34__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbk_aifsn = tmp34__ >> 0 & 0xf;
     pDst->acbk_acm = tmp34__ >> 4 & 0x1;
     pDst->acbk_aci = tmp34__ >> 5 & 0x3;
     pDst->unused2 = tmp34__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp35__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbk_acwmin = tmp35__ >> 0 & 0xf;
     pDst->acbk_acwmax = tmp35__ >> 4 & 0xf;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->acbk_txoplimit, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp36__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvi_aifsn = tmp36__ >> 0 & 0xf;
     pDst->acvi_acm = tmp36__ >> 4 & 0x1;
     pDst->acvi_aci = tmp36__ >> 5 & 0x3;
     pDst->unused3 = tmp36__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     tmp37__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvi_acwmin = tmp37__ >> 0 & 0xf;
     pDst->acvi_acwmax = tmp37__ >> 4 & 0xf;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->acvi_txoplimit, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp38__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvo_aifsn = tmp38__ >> 0 & 0xf;
     pDst->acvo_acm = tmp38__ >> 4 & 0x1;
     pDst->acvo_aci = tmp38__ >> 5 & 0x3;
     pDst->unused4 = tmp38__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp39__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvo_acwmin = tmp39__ >> 0 & 0xf;
     pDst->acvo_acwmax = tmp39__ >> 4 & 0xf;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->acvo_txoplimit, pBuf, 0);
     (void)pCtx;
     return status;
@@ -3033,13 +3880,18 @@ tANI_U32 dot11fUnpackIeEDCAParamSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 
 #define SigIeEDCAParamSet ( 0x0034 )
 
 
-tANI_U32 dot11fUnpackIeERPInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEERPInfo *pDst)
+tANI_U32 dot11fUnpackIeERPInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEERPInfo *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp40__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp40__ = *pBuf;
     pDst->non_erp_present = tmp40__ >> 0 & 0x1;
     pDst->use_prot = tmp40__ >> 1 & 0x1;
@@ -3052,19 +3904,19 @@ tANI_U32 dot11fUnpackIeERPInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeERPInfo ( 0x0035 )
 
 
-tANI_U32 dot11fUnpackIeESECckmOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEESECckmOpaque *pDst)
+tANI_U32 dot11fUnpackIeESECckmOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEESECckmOpaque *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_data = (tANI_U8)( ielen );
-    if (ielen > 20){
+    pDst->num_data = (tANI_U8)( tlvlen );
+    if (tlvlen > 20){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeESECckmOpaque. */
@@ -3072,16 +3924,26 @@ tANI_U32 dot11fUnpackIeESECckmOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIeESECckmOpaque ( 0x0036 )
 
 
-tANI_U32 dot11fUnpackIeESERadMgmtCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEESERadMgmtCap *pDst)
+tANI_U32 dot11fUnpackIeESERadMgmtCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEESERadMgmtCap *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp41__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->mgmt_state = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp41__ = *pBuf;
     pDst->mbssid_mask = tmp41__ >> 0 & 0x7;
     pDst->reserved = tmp41__ >> 3 & 0x1f;
@@ -3092,18 +3954,33 @@ tANI_U32 dot11fUnpackIeESERadMgmtCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIeESERadMgmtCap ( 0x0037 )
 
 
-tANI_U32 dot11fUnpackIeESETrafStrmMet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEESETrafStrmMet *pDst)
+tANI_U32 dot11fUnpackIeESETrafStrmMet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEESETrafStrmMet *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->tsid = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->state = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->msmt_interval, pBuf, 0);
     (void)pCtx;
     return status;
@@ -3112,22 +3989,27 @@ tANI_U32 dot11fUnpackIeESETrafStrmMet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 #define SigIeESETrafStrmMet ( 0x0038 )
 
 
-tANI_U32 dot11fUnpackIeESETrafStrmRateSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEESETrafStrmRateSet *pDst)
+tANI_U32 dot11fUnpackIeESETrafStrmRateSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEESETrafStrmRateSet *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->tsid = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    pDst->num_tsrates = (tANI_U8)( ielen );
-    if (ielen > 8){
+    tlvlen -= (tANI_U8)1;
+    pDst->num_tsrates = (tANI_U8)( tlvlen );
+    if (tlvlen > 8){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->tsrates, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->tsrates, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeESETrafStrmRateSet. */
@@ -3135,15 +4017,25 @@ tANI_U32 dot11fUnpackIeESETrafStrmRateSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 #define SigIeESETrafStrmRateSet ( 0x0039 )
 
 
-tANI_U32 dot11fUnpackIeESETxmitPower(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEESETxmitPower *pDst)
+tANI_U32 dot11fUnpackIeESETxmitPower(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEESETxmitPower *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->power_limit = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->reserved = *pBuf;
     (void)pCtx;
     return status;
@@ -3152,12 +4044,17 @@ tANI_U32 dot11fUnpackIeESETxmitPower(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIeESETxmitPower ( 0x003a )
 
 
-tANI_U32 dot11fUnpackIeESEVersion(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEESEVersion *pDst)
+tANI_U32 dot11fUnpackIeESEVersion(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEESEVersion *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     (void)pCtx;
     return status;
@@ -3166,22 +4063,22 @@ tANI_U32 dot11fUnpackIeESEVersion(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ie
 #define SigIeESEVersion ( 0x003b )
 
 
-tANI_U32 dot11fUnpackIeExtCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEExtCap *pDst)
+tANI_U32 dot11fUnpackIeExtCap(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEExtCap *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
 
-    if (!ielen) /* Check to ensure copying of ielen bytes */
+    if (!tlvlen) /* Check to ensure copying of tlvlen bytes */
         goto endUnpackIeExtCap;
-    pDst->num_bytes = (tANI_U8)( ielen );
-    if (ielen > 9){
+    pDst->num_bytes = (tANI_U8)( tlvlen );
+    if (tlvlen > 9){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->bytes, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->bytes, pBuf, ( tlvlen ) );
 
 endUnpackIeExtCap:
     (void)pCtx;
@@ -3194,15 +4091,15 @@ endUnpackIeExtCap:
 #define SigIeExtChanSwitchAnn ( 0x003d )
 
 
-tANI_U32 dot11fUnpackIeExtSuppRates(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEExtSuppRates *pDst)
+tANI_U32 dot11fUnpackIeExtSuppRates(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEExtSuppRates *pDst)
 {
     tANI_U8 i;
     tANI_U8 rate_indx = 0;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    for (i = 0; i < ielen; i++) {
+    for (i = 0; i < tlvlen; i++) {
         if ((DOT11F_IS_BG_RATE(pBuf[i] & 0x7F)) &&
             (rate_indx < 12)) {
             pDst->rates[rate_indx++] = pBuf[i];
@@ -3222,21 +4119,41 @@ tANI_U32 dot11fUnpackIeExtSuppRates(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 
 #define SigIeExtSuppRates ( 0x003e )
 
 
-tANI_U32 dot11fUnpackIeFHParamSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEFHParamSet *pDst)
+tANI_U32 dot11fUnpackIeFHParamSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEFHParamSet *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->dwell_time, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->hop_set = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->hop_pattern = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->hop_index = *pBuf;
     (void)pCtx;
     return status;
@@ -3245,15 +4162,25 @@ tANI_U32 dot11fUnpackIeFHParamSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ie
 #define SigIeFHParamSet ( 0x003f )
 
 
-tANI_U32 dot11fUnpackIeFHParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEFHParams *pDst)
+tANI_U32 dot11fUnpackIeFHParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEFHParams *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->radix = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->nchannels = *pBuf;
     (void)pCtx;
     return status;
@@ -3262,31 +4189,51 @@ tANI_U32 dot11fUnpackIeFHParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iele
 #define SigIeFHParams ( 0x0040 )
 
 
-tANI_U32 dot11fUnpackIeFHPattTable(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEFHPattTable *pDst)
+tANI_U32 dot11fUnpackIeFHPattTable(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEFHPattTable *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->flag = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->nsets = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->modulus = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->offset = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    pDst->num_randtable = (tANI_U8)( ielen );
-    if (ielen > 251){
+    tlvlen -= (tANI_U8)1;
+    pDst->num_randtable = (tANI_U8)( tlvlen );
+    if (tlvlen > 251){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->randtable, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->randtable, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeFHPattTable. */
@@ -3306,31 +4253,51 @@ tANI_U32 dot11fUnpackIeFHPattTable(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, 0, NULL, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0xff, 0, },
     };
 
-tANI_U32 dot11fUnpackIeFTInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEFTInfo *pDst)
+tANI_U32 dot11fUnpackIeFTInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEFTInfo *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U16 tmp42__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp42__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->reserved = tmp42__ >> 0 & 0xff;
     pDst->IECount = tmp42__ >> 8 & 0xff;
+	if (unlikely(tlvlen < 16)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->MIC, pBuf, 16);
     pBuf += 16;
-    ielen -= (tANI_U8)16;
+    tlvlen -= (tANI_U8)16;
+	if (unlikely(tlvlen < 32)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->Anonce, pBuf, 32);
     pBuf += 32;
-    ielen -= (tANI_U8)32;
+    tlvlen -= (tANI_U8)32;
+	if (unlikely(tlvlen < 32)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->Snonce, pBuf, 32);
     pBuf += 32;
-    ielen -= (tANI_U8)32;
+    tlvlen -= (tANI_U8)32;
     (void)pCtx;
     status |= UnpackCore(pCtx,
                      pBuf,
-                     ielen,
+                     tlvlen,
                      FFS_FTInfo,
                      IES_FTInfo,
                      ( tANI_U8* )pDst,
@@ -3341,13 +4308,18 @@ tANI_U32 dot11fUnpackIeFTInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
 #define SigIeFTInfo ( 0x0042 )
 
 
-tANI_U32 dot11fUnpackIeHT2040BSSCoexistence(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEHT2040BSSCoexistence *pDst)
+tANI_U32 dot11fUnpackIeHT2040BSSCoexistence(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEHT2040BSSCoexistence *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp43__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp43__ = *pBuf;
     pDst->infoRequest = tmp43__ >> 0 & 0x1;
     pDst->fortyMHzIntolerant = tmp43__ >> 1 & 0x1;
@@ -3362,22 +4334,27 @@ tANI_U32 dot11fUnpackIeHT2040BSSCoexistence(tpAniSirGlobal pCtx, tANI_U8 *pBuf, 
 #define SigIeHT2040BSSCoexistence ( 0x0043 )
 
 
-tANI_U32 dot11fUnpackIeHT2040BSSIntolerantReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEHT2040BSSIntolerantReport *pDst)
+tANI_U32 dot11fUnpackIeHT2040BSSIntolerantReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEHT2040BSSIntolerantReport *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->operatingClass = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    pDst->num_channelList = (tANI_U8)( ielen );
-    if (ielen > 50){
+    tlvlen -= (tANI_U8)1;
+    pDst->num_channelList = (tANI_U8)( tlvlen );
+    if (tlvlen > 50){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->channelList, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->channelList, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeHT2040BSSIntolerantReport. */
@@ -3385,7 +4362,7 @@ tANI_U32 dot11fUnpackIeHT2040BSSIntolerantReport(tpAniSirGlobal pCtx, tANI_U8 *p
 #define SigIeHT2040BSSIntolerantReport ( 0x0044 )
 
 
-tANI_U32 dot11fUnpackIeHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEHTCaps *pDst)
+tANI_U32 dot11fUnpackIeHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEHTCaps *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U16 tmp44__;
@@ -3393,12 +4370,17 @@ tANI_U32 dot11fUnpackIeHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
     tANI_U16 tmp46__;
     tANI_U32 tmp47__;
     tANI_U8 tmp48__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp44__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->advCodingCap = tmp44__ >> 0 & 0x1;
     pDst->supportedChannelWidthSet = tmp44__ >> 1 & 0x1;
     pDst->mimoPowerSave = tmp44__ >> 2 & 0x3;
@@ -3413,26 +4395,46 @@ tANI_U32 dot11fUnpackIeHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
     pDst->psmp = tmp44__ >> 13 & 0x1;
     pDst->stbcControlFrame = tmp44__ >> 14 & 0x1;
     pDst->lsigTXOPProtection = tmp44__ >> 15 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp45__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->maxRxAMPDUFactor = tmp45__ >> 0 & 0x3;
     pDst->mpduDensity = tmp45__ >> 2 & 0x7;
     pDst->reserved1 = tmp45__ >> 5 & 0x7;
+	if (unlikely(tlvlen < 16)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->supportedMCSSet, pBuf, 16);
     pBuf += 16;
-    ielen -= (tANI_U8)16;
+    tlvlen -= (tANI_U8)16;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp46__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->pco = tmp46__ >> 0 & 0x1;
     pDst->transitionTime = tmp46__ >> 1 & 0x3;
     pDst->reserved2 = tmp46__ >> 3 & 0x1f;
     pDst->mcsFeedback = tmp46__ >> 8 & 0x3;
     pDst->reserved3 = tmp46__ >> 10 & 0x3f;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &tmp47__, pBuf, 0);
     pBuf += 4;
-    ielen -= 4;
+    tlvlen -= 4;
     pDst->txBF = tmp47__ >> 0 & 0x1;
     pDst->rxStaggeredSounding = tmp47__ >> 1 & 0x1;
     pDst->txStaggeredSounding = tmp47__ >> 2 & 0x1;
@@ -3449,9 +4451,14 @@ tANI_U32 dot11fUnpackIeHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
     pDst->uncompressedSteeringMatrixBFAntennae = tmp47__ >> 21 & 0x3;
     pDst->compressedSteeringMatrixBFAntennae = tmp47__ >> 23 & 0x3;
     pDst->reserved4 = tmp47__ >> 25 & 0x7f;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp48__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->antennaSelection = tmp48__ >> 0 & 0x1;
     pDst->explicitCSIFeedbackTx = tmp48__ >> 1 & 0x1;
     pDst->antennaIndicesFeedbackTx = tmp48__ >> 2 & 0x1;
@@ -3460,13 +4467,13 @@ tANI_U32 dot11fUnpackIeHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
     pDst->rxAS = tmp48__ >> 5 & 0x1;
     pDst->txSoundingPPDUs = tmp48__ >> 6 & 0x1;
     pDst->reserved5 = tmp48__ >> 7 & 0x1;
-    pDst->num_rsvd = (tANI_U8)( ielen );
-    if (ielen > 32){
+    pDst->num_rsvd = (tANI_U8)( tlvlen );
+    if (tlvlen > 32){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->rsvd, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->rsvd, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeHTCaps. */
@@ -3474,37 +4481,57 @@ tANI_U32 dot11fUnpackIeHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
 #define SigIeHTCaps ( 0x0045 )
 
 
-tANI_U32 dot11fUnpackIeHTInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEHTInfo *pDst)
+tANI_U32 dot11fUnpackIeHTInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEHTInfo *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp49__;
     tANI_U16 tmp50__;
     tANI_U16 tmp51__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->primaryChannel = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp49__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->secondaryChannelOffset = tmp49__ >> 0 & 0x3;
     pDst->recommendedTxWidthSet = tmp49__ >> 2 & 0x1;
     pDst->rifsMode = tmp49__ >> 3 & 0x1;
     pDst->controlledAccessOnly = tmp49__ >> 4 & 0x1;
     pDst->serviceIntervalGranularity = tmp49__ >> 5 & 0x7;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp50__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->opMode = tmp50__ >> 0 & 0x3;
     pDst->nonGFDevicesPresent = tmp50__ >> 2 & 0x1;
     pDst->transmitBurstLimit = tmp50__ >> 3 & 0x1;
     pDst->obssNonHTStaPresent = tmp50__ >> 4 & 0x1;
     pDst->reserved = tmp50__ >> 5 & 0x7ff;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp51__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->basicSTBCMCS = tmp51__ >> 0 & 0x7f;
     pDst->dualCTSProtection = tmp51__ >> 7 & 0x1;
     pDst->secondaryBeacon = tmp51__ >> 8 & 0x1;
@@ -3512,16 +4539,21 @@ tANI_U32 dot11fUnpackIeHTInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
     pDst->pcoActive = tmp51__ >> 10 & 0x1;
     pDst->pcoPhase = tmp51__ >> 11 & 0x1;
     pDst->reserved2 = tmp51__ >> 12 & 0xf;
+	if (unlikely(tlvlen < 16)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->basicMCSSet, pBuf, 16);
     pBuf += 16;
-    ielen -= (tANI_U8)16;
-    pDst->num_rsvd = (tANI_U8)( ielen );
-    if (ielen > 32){
+    tlvlen -= (tANI_U8)16;
+    pDst->num_rsvd = (tANI_U8)( tlvlen );
+    if (tlvlen > 32){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->rsvd, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->rsvd, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeHTInfo. */
@@ -3529,12 +4561,17 @@ tANI_U32 dot11fUnpackIeHTInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
 #define SigIeHTInfo ( 0x0046 )
 
 
-tANI_U32 dot11fUnpackIeIBSSParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEIBSSParams *pDst)
+tANI_U32 dot11fUnpackIeIBSSParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEIBSSParams *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->atim, pBuf, 0);
     (void)pCtx;
     return status;
@@ -3543,18 +4580,33 @@ tANI_U32 dot11fUnpackIeIBSSParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ie
 #define SigIeIBSSParams ( 0x0047 )
 
 
-tANI_U32 dot11fUnpackIeLinkIdentifier(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIELinkIdentifier *pDst)
+tANI_U32 dot11fUnpackIeLinkIdentifier(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIELinkIdentifier *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 6)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->bssid, pBuf, 6);
     pBuf += 6;
-    ielen -= (tANI_U8)6;
+    tlvlen -= (tANI_U8)6;
+	if (unlikely(tlvlen < 6)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->InitStaAddr, pBuf, 6);
     pBuf += 6;
-    ielen -= (tANI_U8)6;
+    tlvlen -= (tANI_U8)6;
+	if (unlikely(tlvlen < 6)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->RespStaAddr, pBuf, 6);
     (void)pCtx;
     return status;
@@ -3572,29 +4624,44 @@ static const tIEDefn IES_reportBeacon[ ] = {
 {0, 0, 0, NULL, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0xff, 0, },
 };
 
-tANI_U32 dot11fUnpackIeMeasurementReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEMeasurementReport *pDst)
+tANI_U32 dot11fUnpackIeMeasurementReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEMeasurementReport *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp52__;
     tANI_U8 tmp53__;
     tANI_U8 tmp54__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->token = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp52__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->late = tmp52__ >> 0 & 0x1;
     pDst->incapable = tmp52__ >> 1 & 0x1;
     pDst->refused = tmp52__ >> 2 & 0x1;
     pDst->unused = tmp52__ >> 3 & 0x1f;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->type = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    if ( ! ielen )
+    tlvlen -= (tANI_U8)1;
+    if ( ! tlvlen )
     {
         return 0U;
     }
@@ -3603,18 +4670,38 @@ tANI_U32 dot11fUnpackIeMeasurementReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tAN
         switch (pDst->type)
         {
             case 0:
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.Basic.channel = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 8)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohq(pCtx, &pDst->report.Basic.meas_start_time, pBuf, 0);
                 pBuf += 8;
-                ielen -= (tANI_U8)8;
+                tlvlen -= (tANI_U8)8;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohs(pCtx, &pDst->report.Basic.meas_duration, pBuf, 0);
                 pBuf += 2;
-                ielen -= (tANI_U8)2;
+                tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 tmp53__ = *pBuf;
                 pBuf += 1;
-                ielen -= 1;
+                tlvlen -= 1;
                 pDst->report.Basic.bss = tmp53__ >> 0 & 0x1;
                 pDst->report.Basic.ofdm_preamble = tmp53__ >> 1 & 0x1;
                 pDst->report.Basic.unid_signal = tmp53__ >> 2 & 0x1;
@@ -3623,90 +4710,215 @@ tANI_U32 dot11fUnpackIeMeasurementReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tAN
                 pDst->report.Basic.unused = tmp53__ >> 5 & 0x7;
             break;
             case 1:
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.CCA.channel = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 8)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohq(pCtx, &pDst->report.CCA.meas_start_time, pBuf, 0);
                 pBuf += 8;
-                ielen -= (tANI_U8)8;
+                tlvlen -= (tANI_U8)8;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohs(pCtx, &pDst->report.CCA.meas_duration, pBuf, 0);
                 pBuf += 2;
-                ielen -= (tANI_U8)2;
+                tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.CCA.cca_busy_fraction = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
             break;
             case 2:
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.RPIHistogram.channel = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 8)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohq(pCtx, &pDst->report.RPIHistogram.meas_start_time, pBuf, 0);
                 pBuf += 8;
-                ielen -= (tANI_U8)8;
+                tlvlen -= (tANI_U8)8;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohs(pCtx, &pDst->report.RPIHistogram.meas_duration, pBuf, 0);
                 pBuf += 2;
-                ielen -= (tANI_U8)2;
+                tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.RPIHistogram.rpi0_density = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.RPIHistogram.rpi1_density = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.RPIHistogram.rpi2_density = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.RPIHistogram.rpi3_density = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.RPIHistogram.rpi4_density = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.RPIHistogram.rpi5_density = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.RPIHistogram.rpi6_density = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.RPIHistogram.rpi7_density = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
             break;
             case 5:
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.Beacon.regClass = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.Beacon.channel = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 8)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohq(pCtx, &pDst->report.Beacon.meas_start_time, pBuf, 0);
                 pBuf += 8;
-                ielen -= (tANI_U8)8;
+                tlvlen -= (tANI_U8)8;
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohs(pCtx, &pDst->report.Beacon.meas_duration, pBuf, 0);
                 pBuf += 2;
-                ielen -= (tANI_U8)2;
+                tlvlen -= (tANI_U8)2;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 tmp54__ = *pBuf;
                 pBuf += 1;
-                ielen -= 1;
+                tlvlen -= 1;
                 pDst->report.Beacon.condensed_PHY = tmp54__ >> 0 & 0x7f;
                 pDst->report.Beacon.reported_frame_type = tmp54__ >> 7 & 0x1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.Beacon.RCPI = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.Beacon.RSNI = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 6)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 DOT11F_MEMCPY(pCtx, pDst->report.Beacon.BSSID, pBuf, 6);
                 pBuf += 6;
-                ielen -= (tANI_U8)6;
+                tlvlen -= (tANI_U8)6;
+			if (unlikely(tlvlen < 1)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 pDst->report.Beacon.antenna_id = *pBuf;
                 pBuf += 1;
-                ielen -= (tANI_U8)1;
+                tlvlen -= (tANI_U8)1;
+			if (unlikely(tlvlen < 4)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohl(pCtx, &pDst->report.Beacon.parent_TSF, pBuf, 0);
                 pBuf += 4;
-                ielen -= (tANI_U8)4;
+                tlvlen -= (tANI_U8)4;
             status |= UnpackCore(pCtx,
                      pBuf,
-                     ielen,
+                     tlvlen,
                      FFS_reportBeacon,
                      IES_reportBeacon,
                      ( tANI_U8* )pDst,
@@ -3734,85 +4946,175 @@ static const tIEDefn IES_measurement_requestBeacon[ ] = {
 {0, 0, 0, NULL, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0xff, 0, },
 };
 
-tANI_U32 dot11fUnpackIeMeasurementRequest(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEMeasurementRequest *pDst)
+tANI_U32 dot11fUnpackIeMeasurementRequest(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEMeasurementRequest *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp55__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->measurement_token = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp55__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->parallel = tmp55__ >> 0 & 0x1;
     pDst->enable = tmp55__ >> 1 & 0x1;
     pDst->request = tmp55__ >> 2 & 0x1;
     pDst->report = tmp55__ >> 3 & 0x1;
     pDst->durationMandatory = tmp55__ >> 4 & 0x1;
     pDst->unused = tmp55__ >> 5 & 0x7;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->measurement_type = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     switch (pDst->measurement_type)
     {
         case 0:
+		if (unlikely(tlvlen < 1)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             pDst->measurement_request.Basic.channel_no = *pBuf;
             pBuf += 1;
-            ielen -= (tANI_U8)1;
+            tlvlen -= (tANI_U8)1;
+		if (unlikely(tlvlen < 8)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             DOT11F_MEMCPY(pCtx, pDst->measurement_request.Basic.meas_start_time, pBuf, 8);
             pBuf += 8;
-            ielen -= (tANI_U8)8;
+            tlvlen -= (tANI_U8)8;
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             framesntohs(pCtx, &pDst->measurement_request.Basic.meas_duration, pBuf, 0);
             pBuf += 2;
-            ielen -= (tANI_U8)2;
+            tlvlen -= (tANI_U8)2;
         break;
         case 1:
+		if (unlikely(tlvlen < 1)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             pDst->measurement_request.CCA.channel_no = *pBuf;
             pBuf += 1;
-            ielen -= (tANI_U8)1;
+            tlvlen -= (tANI_U8)1;
+		if (unlikely(tlvlen < 8)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             DOT11F_MEMCPY(pCtx, pDst->measurement_request.CCA.meas_start_time, pBuf, 8);
             pBuf += 8;
-            ielen -= (tANI_U8)8;
+            tlvlen -= (tANI_U8)8;
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             framesntohs(pCtx, &pDst->measurement_request.CCA.meas_duration, pBuf, 0);
             pBuf += 2;
-            ielen -= (tANI_U8)2;
+            tlvlen -= (tANI_U8)2;
         break;
         case 2:
+		if (unlikely(tlvlen < 1)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             pDst->measurement_request.RPIHistogram.channel_no = *pBuf;
             pBuf += 1;
-            ielen -= (tANI_U8)1;
+            tlvlen -= (tANI_U8)1;
+		if (unlikely(tlvlen < 8)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             DOT11F_MEMCPY(pCtx, pDst->measurement_request.RPIHistogram.meas_start_time, pBuf, 8);
             pBuf += 8;
-            ielen -= (tANI_U8)8;
+            tlvlen -= (tANI_U8)8;
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             framesntohs(pCtx, &pDst->measurement_request.RPIHistogram.meas_duration, pBuf, 0);
             pBuf += 2;
-            ielen -= (tANI_U8)2;
+            tlvlen -= (tANI_U8)2;
         break;
         case 5:
+		if (unlikely(tlvlen < 1)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             pDst->measurement_request.Beacon.regClass = *pBuf;
             pBuf += 1;
-            ielen -= (tANI_U8)1;
+            tlvlen -= (tANI_U8)1;
+		if (unlikely(tlvlen < 1)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             pDst->measurement_request.Beacon.channel = *pBuf;
             pBuf += 1;
-            ielen -= (tANI_U8)1;
+            tlvlen -= (tANI_U8)1;
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             framesntohs(pCtx, &pDst->measurement_request.Beacon.randomization, pBuf, 0);
             pBuf += 2;
-            ielen -= (tANI_U8)2;
+            tlvlen -= (tANI_U8)2;
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             framesntohs(pCtx, &pDst->measurement_request.Beacon.meas_duration, pBuf, 0);
             pBuf += 2;
-            ielen -= (tANI_U8)2;
+            tlvlen -= (tANI_U8)2;
+		if (unlikely(tlvlen < 1)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             pDst->measurement_request.Beacon.meas_mode = *pBuf;
             pBuf += 1;
-            ielen -= (tANI_U8)1;
+            tlvlen -= (tANI_U8)1;
+		if (unlikely(tlvlen < 6)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
             DOT11F_MEMCPY(pCtx, pDst->measurement_request.Beacon.BSSID, pBuf, 6);
             pBuf += 6;
-            ielen -= (tANI_U8)6;
+            tlvlen -= (tANI_U8)6;
         status |= UnpackCore(pCtx,
                      pBuf,
-                     ielen,
+                     tlvlen,
                      FFS_measurement_requestBeacon,
                      IES_measurement_requestBeacon,
                      ( tANI_U8* )pDst,
@@ -3826,16 +5128,26 @@ tANI_U32 dot11fUnpackIeMeasurementRequest(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 #define SigIeMeasurementRequest ( 0x004a )
 
 
-tANI_U32 dot11fUnpackIeMobilityDomain(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEMobilityDomain *pDst)
+tANI_U32 dot11fUnpackIeMobilityDomain(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEMobilityDomain *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp56__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->MDID, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp56__ = *pBuf;
     pDst->overDSCap = tmp56__ >> 0 & 0x1;
     pDst->resourceReqCap = tmp56__ >> 1 & 0x1;
@@ -3860,20 +5172,30 @@ tANI_U32 dot11fUnpackIeMobilityDomain(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
         {0, 0, 0, NULL, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0xff, 0, },
     };
 
-tANI_U32 dot11fUnpackIeNeighborReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIENeighborReport *pDst)
+tANI_U32 dot11fUnpackIeNeighborReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIENeighborReport *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp57__;
     tANI_U8 tmp58__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 6)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->bssid, pBuf, 6);
     pBuf += 6;
-    ielen -= (tANI_U8)6;
+    tlvlen -= (tANI_U8)6;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp57__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->APReachability = tmp57__ >> 0 & 0x3;
     pDst->Security = tmp57__ >> 2 & 0x1;
     pDst->KeyScope = tmp57__ >> 3 & 0x1;
@@ -3881,29 +5203,54 @@ tANI_U32 dot11fUnpackIeNeighborReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
     pDst->QosCap = tmp57__ >> 5 & 0x1;
     pDst->apsd = tmp57__ >> 6 & 0x1;
     pDst->rrm = tmp57__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp58__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->DelayedBA = tmp58__ >> 0 & 0x1;
     pDst->ImmBA = tmp58__ >> 1 & 0x1;
     pDst->MobilityDomain = tmp58__ >> 2 & 0x1;
     pDst->reserved = tmp58__ >> 3 & 0x1f;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->reserved1, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->regulatoryClass = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->channel = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->PhyType = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     (void)pCtx;
     status |= UnpackCore(pCtx,
                      pBuf,
-                     ielen,
+                     tlvlen,
                      FFS_NeighborReport,
                      IES_NeighborReport,
                      ( tANI_U8* )pDst,
@@ -3914,30 +5261,65 @@ tANI_U32 dot11fUnpackIeNeighborReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 #define SigIeNeighborReport ( 0x004c )
 
 
-tANI_U32 dot11fUnpackIeOBSSScanParameters(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEOBSSScanParameters *pDst)
+tANI_U32 dot11fUnpackIeOBSSScanParameters(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEOBSSScanParameters *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->obssScanPassiveDwell, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->obssScanActiveDwell, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->bssChannelWidthTriggerScanInterval, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->obssScanPassiveTotalPerChannel, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->obssScanActiveTotalPerChannel, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->bssWidthChannelTransitionDelayFactor, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+		if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->obssScanActivityThreshold, pBuf, 0);
     (void)pCtx;
     return status;
@@ -3946,13 +5328,18 @@ tANI_U32 dot11fUnpackIeOBSSScanParameters(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 #define SigIeOBSSScanParameters ( 0x004d )
 
 
-tANI_U32 dot11fUnpackIeOperatingMode(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEOperatingMode *pDst)
+tANI_U32 dot11fUnpackIeOperatingMode(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEOperatingMode *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp59__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp59__ = *pBuf;
     pDst->chanWidth = tmp59__ >> 0 & 0x3;
     pDst->reserved = tmp59__ >> 2 & 0x3;
@@ -3972,12 +5359,12 @@ tANI_U32 dot11fUnpackIeOperatingMode(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PAssocReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PAssocReq *pDst)
+tANI_U32 dot11fUnpackIeP2PAssocReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PAssocReq *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PAssocReq,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PAssocReq,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PAssocReq. */
 
@@ -3990,12 +5377,12 @@ tANI_U32 dot11fUnpackIeP2PAssocReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PAssocRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PAssocRes *pDst)
+tANI_U32 dot11fUnpackIeP2PAssocRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PAssocRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PAssocRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PAssocRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PAssocRes. */
 
@@ -4009,12 +5396,12 @@ tANI_U32 dot11fUnpackIeP2PAssocRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PBeacon(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PBeacon *pDst)
+tANI_U32 dot11fUnpackIeP2PBeacon(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PBeacon *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PBeacon,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PBeacon,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PBeacon. */
 
@@ -4031,12 +5418,12 @@ tANI_U32 dot11fUnpackIeP2PBeacon(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PBeaconProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PBeaconProbeRes *pDst)
+tANI_U32 dot11fUnpackIeP2PBeaconProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PBeaconProbeRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PBeaconProbeRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PBeaconProbeRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PBeaconProbeRes. */
 
@@ -4048,12 +5435,12 @@ tANI_U32 dot11fUnpackIeP2PBeaconProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tAN
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PDeAuth(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PDeAuth *pDst)
+tANI_U32 dot11fUnpackIeP2PDeAuth(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PDeAuth *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PDeAuth,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PDeAuth,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PDeAuth. */
 
@@ -4066,12 +5453,12 @@ tANI_U32 dot11fUnpackIeP2PDeAuth(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PDeviceDiscoverabilityReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PDeviceDiscoverabilityReq *pDst)
+tANI_U32 dot11fUnpackIeP2PDeviceDiscoverabilityReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PDeviceDiscoverabilityReq *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PDeviceDiscoverabilityReq,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PDeviceDiscoverabilityReq,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PDeviceDiscoverabilityReq. */
 
@@ -4083,12 +5470,12 @@ tANI_U32 dot11fUnpackIeP2PDeviceDiscoverabilityReq(tpAniSirGlobal pCtx, tANI_U8 
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PDeviceDiscoverabilityRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PDeviceDiscoverabilityRes *pDst)
+tANI_U32 dot11fUnpackIeP2PDeviceDiscoverabilityRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PDeviceDiscoverabilityRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PDeviceDiscoverabilityRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PDeviceDiscoverabilityRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PDeviceDiscoverabilityRes. */
 
@@ -4100,12 +5487,12 @@ tANI_U32 dot11fUnpackIeP2PDeviceDiscoverabilityRes(tpAniSirGlobal pCtx, tANI_U8 
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PDisAssoc(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PDisAssoc *pDst)
+tANI_U32 dot11fUnpackIeP2PDisAssoc(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PDisAssoc *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PDisAssoc,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PDisAssoc,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PDisAssoc. */
 
@@ -4121,12 +5508,12 @@ tANI_U32 dot11fUnpackIeP2PDisAssoc(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PGONegCnf(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PGONegCnf *pDst)
+tANI_U32 dot11fUnpackIeP2PGONegCnf(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PGONegCnf *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PGONegCnf,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PGONegCnf,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PGONegCnf. */
 
@@ -4146,12 +5533,12 @@ tANI_U32 dot11fUnpackIeP2PGONegCnf(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PGONegReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PGONegReq *pDst)
+tANI_U32 dot11fUnpackIeP2PGONegReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PGONegReq *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PGONegReq,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PGONegReq,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PGONegReq. */
 
@@ -4171,12 +5558,12 @@ tANI_U32 dot11fUnpackIeP2PGONegReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PGONegRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PGONegRes *pDst)
+tANI_U32 dot11fUnpackIeP2PGONegRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PGONegRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PGONegRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PGONegRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PGONegRes. */
 
@@ -4189,31 +5576,31 @@ tANI_U32 dot11fUnpackIeP2PGONegRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PGONegWPS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PGONegWPS *pDst)
+tANI_U32 dot11fUnpackIeP2PGONegWPS(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PGONegWPS *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PGONegWPS,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PGONegWPS,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PGONegWPS. */
 
 #define SigIeP2PGONegWPS ( 0x005a )
 
 
-tANI_U32 dot11fUnpackIeP2PIEOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PIEOpaque *pDst)
+tANI_U32 dot11fUnpackIeP2PIEOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PIEOpaque *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_data = (tANI_U8)( ielen );
-    if (ielen > 249){
+    pDst->num_data = (tANI_U8)( tlvlen );
+    if (tlvlen > 249){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeP2PIEOpaque. */
@@ -4232,12 +5619,12 @@ tANI_U32 dot11fUnpackIeP2PIEOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PInvitationReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PInvitationReq *pDst)
+tANI_U32 dot11fUnpackIeP2PInvitationReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PInvitationReq *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PInvitationReq,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PInvitationReq,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PInvitationReq. */
 
@@ -4253,12 +5640,12 @@ tANI_U32 dot11fUnpackIeP2PInvitationReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PInvitationRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PInvitationRes *pDst)
+tANI_U32 dot11fUnpackIeP2PInvitationRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PInvitationRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PInvitationRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PInvitationRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PInvitationRes. */
 
@@ -4270,12 +5657,12 @@ tANI_U32 dot11fUnpackIeP2PInvitationRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PNoticeOfAbsence(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PNoticeOfAbsence *pDst)
+tANI_U32 dot11fUnpackIeP2PNoticeOfAbsence(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PNoticeOfAbsence *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PNoticeOfAbsence,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PNoticeOfAbsence,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PNoticeOfAbsence. */
 
@@ -4288,12 +5675,12 @@ tANI_U32 dot11fUnpackIeP2PNoticeOfAbsence(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PPresenceResponse(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PPresenceResponse *pDst)
+tANI_U32 dot11fUnpackIeP2PPresenceResponse(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PPresenceResponse *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PPresenceResponse,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PPresenceResponse,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PPresenceResponse. */
 
@@ -4309,12 +5696,12 @@ tANI_U32 dot11fUnpackIeP2PPresenceResponse(tpAniSirGlobal pCtx, tANI_U8 *pBuf, t
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PProbeReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PProbeReq *pDst)
+tANI_U32 dot11fUnpackIeP2PProbeReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PProbeReq *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PProbeReq,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PProbeReq,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PProbeReq. */
 
@@ -4330,12 +5717,12 @@ tANI_U32 dot11fUnpackIeP2PProbeReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PProbeRes *pDst)
+tANI_U32 dot11fUnpackIeP2PProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PProbeRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PProbeRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PProbeRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PProbeRes. */
 
@@ -4349,12 +5736,12 @@ tANI_U32 dot11fUnpackIeP2PProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PProvisionDiscoveryReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PProvisionDiscoveryReq *pDst)
+tANI_U32 dot11fUnpackIeP2PProvisionDiscoveryReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PProvisionDiscoveryReq *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PProvisionDiscoveryReq,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PProvisionDiscoveryReq,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PProvisionDiscoveryReq. */
 
@@ -4366,27 +5753,37 @@ tANI_U32 dot11fUnpackIeP2PProvisionDiscoveryReq(tpAniSirGlobal pCtx, tANI_U8 *pB
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeP2PWSCProvisionDiscoveryRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEP2PWSCProvisionDiscoveryRes *pDst)
+tANI_U32 dot11fUnpackIeP2PWSCProvisionDiscoveryRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEP2PWSCProvisionDiscoveryRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_P2PWSCProvisionDiscoveryRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_P2PWSCProvisionDiscoveryRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeP2PWSCProvisionDiscoveryRes. */
 
 #define SigIeP2PWSCProvisionDiscoveryRes ( 0x0063 )
 
 
-tANI_U32 dot11fUnpackIePTIControl(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEPTIControl *pDst)
+tANI_U32 dot11fUnpackIePTIControl(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEPTIControl *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->tid = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->sequence_control, pBuf, 0);
     (void)pCtx;
     return status;
@@ -4395,13 +5792,17 @@ tANI_U32 dot11fUnpackIePTIControl(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ie
 #define SigIePTIControl ( 0x0064 )
 
 
-tANI_U32 dot11fUnpackIePUBufferStatus(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEPUBufferStatus *pDst)
+tANI_U32 dot11fUnpackIePUBufferStatus(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEPUBufferStatus *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp60__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     tmp60__ = *pBuf;
     pDst->ac_bk_traffic_aval = tmp60__ >> 0 & 0x1;
     pDst->ac_be_traffic_aval = tmp60__ >> 1 & 0x1;
@@ -4415,15 +5816,25 @@ tANI_U32 dot11fUnpackIePUBufferStatus(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 #define SigIePUBufferStatus ( 0x0065 )
 
 
-tANI_U32 dot11fUnpackIePowerCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEPowerCaps *pDst)
+tANI_U32 dot11fUnpackIePowerCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEPowerCaps *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->minTxPower = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->maxTxPower = *pBuf;
     (void)pCtx;
     return status;
@@ -4432,12 +5843,17 @@ tANI_U32 dot11fUnpackIePowerCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
 #define SigIePowerCaps ( 0x0066 )
 
 
-tANI_U32 dot11fUnpackIePowerConstraints(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEPowerConstraints *pDst)
+tANI_U32 dot11fUnpackIePowerConstraints(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEPowerConstraints *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->localPowerConstraints = *pBuf;
     (void)pCtx;
     return status;
@@ -4446,18 +5862,33 @@ tANI_U32 dot11fUnpackIePowerConstraints(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI
 #define SigIePowerConstraints ( 0x0067 )
 
 
-tANI_U32 dot11fUnpackIeQBSSLoad(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEQBSSLoad *pDst)
+tANI_U32 dot11fUnpackIeQBSSLoad(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEQBSSLoad *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->stacount, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->chautil = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->avail, pBuf, 0);
     (void)pCtx;
     return status;
@@ -4466,13 +5897,18 @@ tANI_U32 dot11fUnpackIeQBSSLoad(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iele
 #define SigIeQBSSLoad ( 0x0068 )
 
 
-tANI_U32 dot11fUnpackIeQOSCapsAp(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEQOSCapsAp *pDst)
+tANI_U32 dot11fUnpackIeQOSCapsAp(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEQOSCapsAp *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp61__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp61__ = *pBuf;
     pDst->count = tmp61__ >> 0 & 0xf;
     pDst->qack = tmp61__ >> 4 & 0x1;
@@ -4486,13 +5922,18 @@ tANI_U32 dot11fUnpackIeQOSCapsAp(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
 #define SigIeQOSCapsAp ( 0x0069 )
 
 
-tANI_U32 dot11fUnpackIeQOSCapsStation(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEQOSCapsStation *pDst)
+tANI_U32 dot11fUnpackIeQOSCapsStation(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEQOSCapsStation *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp62__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp62__ = *pBuf;
     pDst->acvo_uapsd = tmp62__ >> 0 & 0x1;
     pDst->acvi_uapsd = tmp62__ >> 1 & 0x1;
@@ -4508,19 +5949,19 @@ tANI_U32 dot11fUnpackIeQOSCapsStation(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 #define SigIeQOSCapsStation ( 0x006a )
 
 
-tANI_U32 dot11fUnpackIeQosMapSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEQosMapSet *pDst)
+tANI_U32 dot11fUnpackIeQosMapSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEQosMapSet *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_dscp_exceptions = (tANI_U8)( ielen );
-    if (ielen > 60){
+    pDst->num_dscp_exceptions = (tANI_U8)( tlvlen );
+    if (tlvlen > 60){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->dscp_exceptions, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->dscp_exceptions, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeQosMapSet. */
@@ -4528,21 +5969,41 @@ tANI_U32 dot11fUnpackIeQosMapSet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
 #define SigIeQosMapSet ( 0x006b )
 
 
-tANI_U32 dot11fUnpackIeQuiet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEQuiet *pDst)
+tANI_U32 dot11fUnpackIeQuiet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEQuiet *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->count = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->period = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->duration, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->offset, pBuf, 0);
     (void)pCtx;
     return status;
@@ -4551,12 +6012,17 @@ tANI_U32 dot11fUnpackIeQuiet(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, 
 #define SigIeQuiet ( 0x006c )
 
 
-tANI_U32 dot11fUnpackIeRCPIIE(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIERCPIIE *pDst)
+tANI_U32 dot11fUnpackIeRCPIIE(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIERCPIIE *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->rcpi = *pBuf;
     (void)pCtx;
     return status;
@@ -4585,16 +6051,16 @@ tANI_U32 dot11fUnpackIeRCPIIE(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
         {0, 0, 0, NULL, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0xff, 0, },
     };
 
-tANI_U32 dot11fUnpackIeRICDataDesc(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIERICDataDesc *pDst)
+tANI_U32 dot11fUnpackIeRICDataDesc(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIERICDataDesc *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     (void)pCtx;
     status |= UnpackCore(pCtx,
                      pBuf,
-                     ielen,
+                     tlvlen,
                      FFS_RICDataDesc,
                      IES_RICDataDesc,
                      ( tANI_U8* )pDst,
@@ -4605,15 +6071,20 @@ tANI_U32 dot11fUnpackIeRICDataDesc(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
 #define SigIeRICDataDesc ( 0x006e )
 
 
-tANI_U32 dot11fUnpackIeRSN(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIERSN *pDst)
+tANI_U32 dot11fUnpackIeRSN(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIERSN *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->version, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
@@ -4621,8 +6092,8 @@ tANI_U32 dot11fUnpackIeRSN(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
     }
     DOT11F_MEMCPY(pCtx, pDst->gp_cipher_suite, pBuf, 4);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
-    if ( ! ielen )
+    tlvlen -= (tANI_U8)4;
+    if ( ! tlvlen )
     {
         pDst->pwise_cipher_suite_count = 0U;
         pDst->akm_suite_count = 0U;
@@ -4633,7 +6104,7 @@ tANI_U32 dot11fUnpackIeRSN(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
     {
         framesntohs(pCtx, &pDst->pwise_cipher_suite_count, pBuf, 0);
         pBuf += 2;
-        ielen -= (tANI_U8)2;
+        tlvlen -= (tANI_U8)2;
     }
     if (pDst->pwise_cipher_suite_count > 4){
         pDst->present = 0;
@@ -4642,8 +6113,8 @@ tANI_U32 dot11fUnpackIeRSN(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 
     DOT11F_MEMCPY(pCtx, pDst->pwise_cipher_suites, pBuf, ( pDst->pwise_cipher_suite_count * 4 ) );
     pBuf += ( pDst->pwise_cipher_suite_count * 4 );
-    ielen -= ( pDst->pwise_cipher_suite_count * 4 );
-    if ( ! ielen )
+    tlvlen -= ( pDst->pwise_cipher_suite_count * 4 );
+    if ( ! tlvlen )
     {
         pDst->akm_suite_count = 0U;
         pDst->pmkid_count = 0U;
@@ -4653,7 +6124,7 @@ tANI_U32 dot11fUnpackIeRSN(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
     {
         framesntohs(pCtx, &pDst->akm_suite_count, pBuf, 0);
         pBuf += 2;
-        ielen -= (tANI_U8)2;
+        tlvlen -= (tANI_U8)2;
     }
     if (pDst->akm_suite_count > 4){
         pDst->present = 0;
@@ -4662,29 +6133,43 @@ tANI_U32 dot11fUnpackIeRSN(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 
     DOT11F_MEMCPY(pCtx, pDst->akm_suites, pBuf, ( pDst->akm_suite_count * 4 ) );
     pBuf += ( pDst->akm_suite_count * 4 );
-    ielen -= ( pDst->akm_suite_count * 4 );
-    if ( ! ielen )
+    tlvlen -= ( pDst->akm_suite_count * 4 );
+    if ( ! tlvlen )
     {
         pDst->pmkid_count = 0U;
         return 0U;
     }
     else
     {
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
         DOT11F_MEMCPY(pCtx, pDst->RSN_Cap, pBuf, 2);
         pBuf += 2;
-        ielen -= (tANI_U8)2;
+        tlvlen -= (tANI_U8)2;
     }
-    if ( ! ielen )
+    if ( ! tlvlen )
     {
         pDst->pmkid_count = 0U;
         return 0U;
     }
     else
     {
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
         framesntohs(pCtx, &pDst->pmkid_count, pBuf, 0);
         pBuf += 2;
-        ielen -= (tANI_U8)2;
+        tlvlen -= (tANI_U8)2;
     }
+	if (unlikely(tlvlen < pDst->pmkid_count * 16)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     if (pDst->pmkid_count > 4){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
@@ -4692,13 +6177,16 @@ tANI_U32 dot11fUnpackIeRSN(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 
     DOT11F_MEMCPY(pCtx, pDst->pmkid, pBuf, ( pDst->pmkid_count * 16 ) );
     pBuf += ( pDst->pmkid_count * 16 );
-    ielen -= ( pDst->pmkid_count * 16 );
-    if ( ! ielen )
+    tlvlen -= ( pDst->pmkid_count * 16 );
+    if ( ! tlvlen )
     {
         return 0U;
-    }
-    else
-    {
+    } else {
+		if (unlikely(tlvlen < 4)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
         DOT11F_MEMCPY(pCtx, pDst->gp_mgmt_cipher_suite, pBuf, 4);
     }
     (void)pCtx;
@@ -4708,12 +6196,17 @@ tANI_U32 dot11fUnpackIeRSN(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 #define SigIeRSN ( 0x006f )
 
 
-tANI_U32 dot11fUnpackIeRSNIIE(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIERSNIIE *pDst)
+tANI_U32 dot11fUnpackIeRSNIIE(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIERSNIIE *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->rsni = *pBuf;
     (void)pCtx;
     return status;
@@ -4722,19 +6215,19 @@ tANI_U32 dot11fUnpackIeRSNIIE(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
 #define SigIeRSNIIE ( 0x0070 )
 
 
-tANI_U32 dot11fUnpackIeRSNOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIERSNOpaque *pDst)
+tANI_U32 dot11fUnpackIeRSNOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIERSNOpaque *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_data = (tANI_U8)( ielen );
-    if (ielen > 253){
+    pDst->num_data = (tANI_U8)( tlvlen );
+    if (tlvlen > 253){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeRSNOpaque. */
@@ -4742,19 +6235,19 @@ tANI_U32 dot11fUnpackIeRSNOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
 #define SigIeRSNOpaque ( 0x0071 )
 
 
-tANI_U32 dot11fUnpackIeSuppChannels(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIESuppChannels *pDst)
+tANI_U32 dot11fUnpackIeSuppChannels(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIESuppChannels *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_bands = (tANI_U8)( ielen / 2 );
-    if (ielen > 48 * 2){
+    pDst->num_bands = (tANI_U8)( tlvlen / 2 );
+    if (tlvlen > 48 * 2){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->bands, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->bands, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeSuppChannels. */
@@ -4762,19 +6255,19 @@ tANI_U32 dot11fUnpackIeSuppChannels(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 
 #define SigIeSuppChannels ( 0x0072 )
 
 
-tANI_U32 dot11fUnpackIeSuppOperatingClasses(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIESuppOperatingClasses *pDst)
+tANI_U32 dot11fUnpackIeSuppOperatingClasses(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIESuppOperatingClasses *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_classes = (tANI_U8)( ielen );
-    if (ielen > 32){
+    pDst->num_classes = (tANI_U8)( tlvlen );
+    if (tlvlen > 32){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->classes, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->classes, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeSuppOperatingClasses. */
@@ -4782,15 +6275,15 @@ tANI_U32 dot11fUnpackIeSuppOperatingClasses(tpAniSirGlobal pCtx, tANI_U8 *pBuf, 
 #define SigIeSuppOperatingClasses ( 0x0073 )
 
 
-tANI_U32 dot11fUnpackIeSuppRates(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIESuppRates *pDst)
+tANI_U32 dot11fUnpackIeSuppRates(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIESuppRates *pDst)
 {
     tANI_U8 i;
     tANI_U8 rate_indx = 0;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    for (i = 0; i < ielen; i++) {
+    for (i = 0; i < tlvlen; i++) {
         if ((DOT11F_IS_BG_RATE(pBuf[i] & 0x7F)) &&
             (rate_indx < 12)) {
             pDst->rates[rate_indx++] = pBuf[i];
@@ -4810,28 +6303,43 @@ tANI_U32 dot11fUnpackIeSuppRates(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
 #define SigIeSuppRates ( 0x0074 )
 
 
-tANI_U32 dot11fUnpackIeTIM(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETIM *pDst)
+tANI_U32 dot11fUnpackIeTIM(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETIM *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->dtim_count = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->dtim_period = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->bmpctl = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
-    pDst->num_vbmp = (tANI_U8)( ielen );
-    if (ielen > 251){
+    tlvlen -= (tANI_U8)1;
+    pDst->num_vbmp = (tANI_U8)( tlvlen );
+    if (tlvlen > 251){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->vbmp, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->vbmp, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeTIM. */
@@ -4839,15 +6347,25 @@ tANI_U32 dot11fUnpackIeTIM(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 #define SigIeTIM ( 0x0075 )
 
 
-tANI_U32 dot11fUnpackIeTPCReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETPCReport *pDst)
+tANI_U32 dot11fUnpackIeTPCReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETPCReport *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->tx_power = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->link_margin = *pBuf;
     (void)pCtx;
     return status;
@@ -4856,10 +6374,10 @@ tANI_U32 dot11fUnpackIeTPCReport(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
 #define SigIeTPCReport ( 0x0076 )
 
 
-tANI_U32 dot11fUnpackIeTPCRequest(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETPCRequest *pDst)
+tANI_U32 dot11fUnpackIeTPCRequest(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETPCRequest *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
     (void)pCtx;
@@ -4869,15 +6387,24 @@ tANI_U32 dot11fUnpackIeTPCRequest(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ie
 #define SigIeTPCRequest ( 0x0077 )
 
 
-tANI_U32 dot11fUnpackIeTimeoutInterval(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIETimeoutInterval *pDst)
+tANI_U32 dot11fUnpackIeTimeoutInterval(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIETimeoutInterval *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->timeoutType = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     framesntohl(pCtx, &pDst->timeoutValue, pBuf, 0);
     (void)pCtx;
     return status;
@@ -4886,18 +6413,23 @@ tANI_U32 dot11fUnpackIeTimeoutInterval(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_
 #define SigIeTimeoutInterval ( 0x0078 )
 
 
-tANI_U32 dot11fUnpackIeVHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEVHTCaps *pDst)
+tANI_U32 dot11fUnpackIeVHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEVHTCaps *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U32 tmp63__;
     tANI_U16 tmp64__;
     tANI_U16 tmp65__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohl(pCtx, &tmp63__, pBuf, 0);
     pBuf += 4;
-    ielen -= 4;
+    tlvlen -= 4;
     pDst->maxMPDULen = tmp63__ >> 0 & 0x3;
     pDst->supportedChannelWidthSet = tmp63__ >> 2 & 0x3;
     pDst->ldpcCodingCap = tmp63__ >> 4 & 0x1;
@@ -4918,17 +6450,37 @@ tANI_U32 dot11fUnpackIeVHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
     pDst->rxAntPattern = tmp63__ >> 28 & 0x1;
     pDst->txAntPattern = tmp63__ >> 29 & 0x1;
     pDst->reserved1 = tmp63__ >> 30 & 0x3;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->rxMCSMap, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp64__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->rxHighSupDataRate = tmp64__ >> 0 & 0x1fff;
     pDst->reserved2 = tmp64__ >> 13 & 0x7;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->txMCSMap, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp65__, pBuf, 0);
     pDst->txSupDataRate = tmp65__ >> 0 & 0x1fff;
     pDst->reserved3 = tmp65__ >> 13 & 0x7;
@@ -4939,24 +6491,49 @@ tANI_U32 dot11fUnpackIeVHTCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeVHTCaps ( 0x0079 )
 
 
-tANI_U32 dot11fUnpackIeVHTExtBssLoad(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEVHTExtBssLoad *pDst)
+tANI_U32 dot11fUnpackIeVHTExtBssLoad(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEVHTExtBssLoad *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->muMIMOCapStaCount = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->ssUnderUtil = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->FortyMHzUtil = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->EightyMHzUtil = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->OneSixtyMHzUtil = *pBuf;
     (void)pCtx;
     return status;
@@ -4965,21 +6542,41 @@ tANI_U32 dot11fUnpackIeVHTExtBssLoad(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
 #define SigIeVHTExtBssLoad ( 0x007a )
 
 
-tANI_U32 dot11fUnpackIeVHTOperation(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEVHTOperation *pDst)
+tANI_U32 dot11fUnpackIeVHTOperation(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEVHTOperation *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->chanWidth = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->chanCenterFreqSeg1 = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->chanCenterFreqSeg2 = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->basicMCSSet, pBuf, 0);
     (void)pCtx;
     return status;
@@ -4988,24 +6585,40 @@ tANI_U32 dot11fUnpackIeVHTOperation(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 
 #define SigIeVHTOperation ( 0x007b )
 
 
-tANI_U32 dot11fUnpackIeWAPI(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWAPI *pDst)
+tANI_U32 dot11fUnpackIeWAPI(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWAPI *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U16 tmp66__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->version, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
             return ( status | DOT11F_BAD_FIXED_VALUE );
     }
+
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+	
     framesntohs(pCtx, &pDst->akm_suite_count, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < pDst->akm_suite_count * 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+	
     if (pDst->akm_suite_count > 4){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
@@ -5013,10 +6626,20 @@ tANI_U32 dot11fUnpackIeWAPI(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, t
 
     DOT11F_MEMCPY(pCtx, pDst->akm_suites, pBuf, ( pDst->akm_suite_count * 4 ) );
     pBuf += ( pDst->akm_suite_count * 4 );
-    ielen -= ( pDst->akm_suite_count * 4 );
+    tlvlen -= ( pDst->akm_suite_count * 4 );
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->unicast_cipher_suite_count, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < pDst->unicast_cipher_suite_count * 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     if (pDst->unicast_cipher_suite_count > 4){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
@@ -5024,26 +6647,44 @@ tANI_U32 dot11fUnpackIeWAPI(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, t
 
     DOT11F_MEMCPY(pCtx, pDst->unicast_cipher_suites, pBuf, ( pDst->unicast_cipher_suite_count * 4 ) );
     pBuf += ( pDst->unicast_cipher_suite_count * 4 );
-    ielen -= ( pDst->unicast_cipher_suite_count * 4 );
+    tlvlen -= ( pDst->unicast_cipher_suite_count * 4 );
+	if (unlikely(tlvlen < 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     DOT11F_MEMCPY(pCtx, pDst->multicast_cipher_suite, pBuf, 4);
     pBuf += 4;
-    ielen -= (tANI_U8)4;
+    tlvlen -= (tANI_U8)4;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &tmp66__, pBuf, 0);
     pBuf += 2;
-    ielen -= 2;
+    tlvlen -= 2;
     pDst->preauth = tmp66__ >> 0 & 0x1;
     pDst->reserved = tmp66__ >> 1 & 0x7fff;
-    if ( ! ielen )
+    if ( ! tlvlen )
     {
         pDst->bkid_count = 0U;
         return 0U;
-    }
-    else
-    {
+    } else {
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
         framesntohs(pCtx, &pDst->bkid_count, pBuf, 0);
         pBuf += 2;
-        ielen -= (tANI_U8)2;
+        tlvlen -= (tANI_U8)2;
     }
+	if (unlikely(tlvlen < pDst->bkid_count * 16)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     if (pDst->bkid_count > 4){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
@@ -5057,19 +6698,19 @@ tANI_U32 dot11fUnpackIeWAPI(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, t
 #define SigIeWAPI ( 0x007c )
 
 
-tANI_U32 dot11fUnpackIeWAPIOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWAPIOpaque *pDst)
+tANI_U32 dot11fUnpackIeWAPIOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWAPIOpaque *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_data = (tANI_U8)( ielen );
-    if (ielen > 253){
+    pDst->num_data = (tANI_U8)( tlvlen );
+    if (tlvlen > 253){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeWAPIOpaque. */
@@ -5077,15 +6718,25 @@ tANI_U32 dot11fUnpackIeWAPIOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ie
 #define SigIeWAPIOpaque ( 0x007d )
 
 
-tANI_U32 dot11fUnpackIeWFATPC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWFATPC *pDst)
+tANI_U32 dot11fUnpackIeWFATPC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWFATPC *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->txPower = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->linkMargin = *pBuf;
     (void)pCtx;
     return status;
@@ -5094,19 +6745,19 @@ tANI_U32 dot11fUnpackIeWFATPC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen,
 #define SigIeWFATPC ( 0x007e )
 
 
-tANI_U32 dot11fUnpackIeWFDIEOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWFDIEOpaque *pDst)
+tANI_U32 dot11fUnpackIeWFDIEOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWFDIEOpaque *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_data = (tANI_U8)( ielen );
-    if (ielen > 249){
+    pDst->num_data = (tANI_U8)( tlvlen );
+    if (tlvlen > 249){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeWFDIEOpaque. */
@@ -5114,21 +6765,31 @@ tANI_U32 dot11fUnpackIeWFDIEOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
 #define SigIeWFDIEOpaque ( 0x007f )
 
 
-tANI_U32 dot11fUnpackIeWMMCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWMMCaps *pDst)
+tANI_U32 dot11fUnpackIeWMMCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWMMCaps *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp67__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
             return ( status | DOT11F_BAD_FIXED_VALUE );
     }
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp67__ = *pBuf;
     pDst->reserved = tmp67__ >> 0 & 0xf;
     pDst->qack = tmp67__ >> 4 & 0x1;
@@ -5142,16 +6803,26 @@ tANI_U32 dot11fUnpackIeWMMCaps(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen
 #define SigIeWMMCaps ( 0x0080 )
 
 
-tANI_U32 dot11fUnpackIeWMMInfoAp(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWMMInfoAp *pDst)
+tANI_U32 dot11fUnpackIeWMMInfoAp(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWMMInfoAp *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp68__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp68__ = *pBuf;
     pDst->param_set_count = tmp68__ >> 0 & 0xf;
     pDst->reserved = tmp68__ >> 4 & 0x7;
@@ -5163,16 +6834,26 @@ tANI_U32 dot11fUnpackIeWMMInfoAp(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
 #define SigIeWMMInfoAp ( 0x0081 )
 
 
-tANI_U32 dot11fUnpackIeWMMInfoStation(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWMMInfoStation *pDst)
+tANI_U32 dot11fUnpackIeWMMInfoStation(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWMMInfoStation *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp69__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp69__ = *pBuf;
     pDst->acvo_uapsd = tmp69__ >> 0 & 0x1;
     pDst->acvi_uapsd = tmp69__ >> 1 & 0x1;
@@ -5188,7 +6869,7 @@ tANI_U32 dot11fUnpackIeWMMInfoStation(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 #define SigIeWMMInfoStation ( 0x0082 )
 
 
-tANI_U32 dot11fUnpackIeWMMParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWMMParams *pDst)
+tANI_U32 dot11fUnpackIeWMMParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWMMParams *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp70__;
@@ -5199,80 +6880,154 @@ tANI_U32 dot11fUnpackIeWMMParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
     tANI_U8 tmp75__;
     tANI_U8 tmp76__;
     tANI_U8 tmp77__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->version = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
             return ( status | DOT11F_BAD_FIXED_VALUE );
     }
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->qosInfo = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->reserved2 = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp70__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbe_aifsn = tmp70__ >> 0 & 0xf;
     pDst->acbe_acm = tmp70__ >> 4 & 0x1;
     pDst->acbe_aci = tmp70__ >> 5 & 0x3;
     pDst->unused1 = tmp70__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp71__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbe_acwmin = tmp71__ >> 0 & 0xf;
     pDst->acbe_acwmax = tmp71__ >> 4 & 0xf;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->acbe_txoplimit, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp72__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbk_aifsn = tmp72__ >> 0 & 0xf;
     pDst->acbk_acm = tmp72__ >> 4 & 0x1;
     pDst->acbk_aci = tmp72__ >> 5 & 0x3;
     pDst->unused2 = tmp72__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp73__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acbk_acwmin = tmp73__ >> 0 & 0xf;
     pDst->acbk_acwmax = tmp73__ >> 4 & 0xf;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->acbk_txoplimit, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp74__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvi_aifsn = tmp74__ >> 0 & 0xf;
     pDst->acvi_acm = tmp74__ >> 4 & 0x1;
     pDst->acvi_aci = tmp74__ >> 5 & 0x3;
     pDst->unused3 = tmp74__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp75__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvi_acwmin = tmp75__ >> 0 & 0xf;
     pDst->acvi_acwmax = tmp75__ >> 4 & 0xf;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     framesntohs(pCtx, &pDst->acvi_txoplimit, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp76__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvo_aifsn = tmp76__ >> 0 & 0xf;
     pDst->acvo_acm = tmp76__ >> 4 & 0x1;
     pDst->acvo_aci = tmp76__ >> 5 & 0x3;
     pDst->unused4 = tmp76__ >> 7 & 0x1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp77__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->acvo_acwmin = tmp77__ >> 0 & 0xf;
     pDst->acvo_acwmax = tmp77__ >> 4 & 0xf;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     framesntohs(pCtx, &pDst->acvo_txoplimit, pBuf, 0);
     (void)pCtx;
     return status;
@@ -5281,21 +7036,25 @@ tANI_U32 dot11fUnpackIeWMMParams(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
 #define SigIeWMMParams ( 0x0083 )
 
 
-tANI_U32 dot11fUnpackIeWPA(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWPA *pDst)
+tANI_U32 dot11fUnpackIeWPA(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWPA *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 2)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
     framesntohs(pCtx, &pDst->version, pBuf, 0);
     pBuf += 2;
-    ielen -= (tANI_U8)2;
+    tlvlen -= (tANI_U8)2;
     if (pDst->version != 0x1)
     {
             pDst->present = 0;
             return ( status | DOT11F_BAD_FIXED_VALUE );
     }
-    if ( ! ielen )
+    if ( ! tlvlen )
     {
         pDst->multicast_cipher_present = 0U;
         pDst->unicast_cipher_count = 0U;
@@ -5305,11 +7064,16 @@ tANI_U32 dot11fUnpackIeWPA(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
     else
     {
         pDst->multicast_cipher_present = 1U;
+		if (unlikely(tlvlen < 4)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
         DOT11F_MEMCPY(pCtx, pDst->multicast_cipher, pBuf, 4);
         pBuf += 4;
-        ielen -= (tANI_U8)4;
+        tlvlen -= (tANI_U8)4;
     }
-    if ( ! ielen )
+    if ( ! tlvlen )
     {
         pDst->unicast_cipher_count = 0U;
         pDst->auth_suite_count = 0U;
@@ -5317,10 +7081,20 @@ tANI_U32 dot11fUnpackIeWPA(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
     }
     else
     {
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
         framesntohs(pCtx, &pDst->unicast_cipher_count, pBuf, 0);
         pBuf += 2;
-        ielen -= (tANI_U8)2;
+        tlvlen -= (tANI_U8)2;
     }
+	if (unlikely(tlvlen < pDst->unicast_cipher_count * 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     if (pDst->unicast_cipher_count > 4){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
@@ -5328,18 +7102,28 @@ tANI_U32 dot11fUnpackIeWPA(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 
     DOT11F_MEMCPY(pCtx, pDst->unicast_ciphers, pBuf, ( pDst->unicast_cipher_count * 4 ) );
     pBuf += ( pDst->unicast_cipher_count * 4 );
-    ielen -= ( pDst->unicast_cipher_count * 4 );
-    if ( ! ielen )
+    tlvlen -= ( pDst->unicast_cipher_count * 4 );
+    if ( ! tlvlen )
     {
         pDst->auth_suite_count = 0U;
         return 0U;
     }
     else
     {
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
         framesntohs(pCtx, &pDst->auth_suite_count, pBuf, 0);
         pBuf += 2;
-        ielen -= (tANI_U8)2;
+        tlvlen -= (tANI_U8)2;
     }
+	if (unlikely(tlvlen < pDst->auth_suite_count * 4)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     if (pDst->auth_suite_count > 4){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
@@ -5347,13 +7131,18 @@ tANI_U32 dot11fUnpackIeWPA(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 
     DOT11F_MEMCPY(pCtx, pDst->auth_suites, pBuf, ( pDst->auth_suite_count * 4 ) );
     pBuf += ( pDst->auth_suite_count * 4 );
-    ielen -= ( pDst->auth_suite_count * 4 );
-    if ( ! ielen )
+    tlvlen -= ( pDst->auth_suite_count * 4 );
+    if ( ! tlvlen )
     {
         return 0U;
     }
     else
     {
+		if (unlikely(tlvlen < 2)) {
+			pDst->present = 0;
+ 			return DOT11F_INCOMPLETE_IE;
+		}
+
         framesntohs(pCtx, &pDst->caps, pBuf, 0);
     }
     (void)pCtx;
@@ -5363,19 +7152,19 @@ tANI_U32 dot11fUnpackIeWPA(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tD
 #define SigIeWPA ( 0x0084 )
 
 
-tANI_U32 dot11fUnpackIeWPAOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWPAOpaque *pDst)
+tANI_U32 dot11fUnpackIeWPAOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWPAOpaque *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_data = (tANI_U8)( ielen );
-    if (ielen > 249){
+    pDst->num_data = (tANI_U8)( tlvlen );
+    if (tlvlen > 249){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeWPAOpaque. */
@@ -5409,30 +7198,45 @@ tANI_U32 dot11fUnpackIeWPAOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeWSC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWSC *pDst)
+tANI_U32 dot11fUnpackIeWSC(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWSC *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_WSC,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_WSC,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeWSC. */
 
 #define SigIeWSC ( 0x0086 )
 
 
-tANI_U32 dot11fUnpackIeWiderBWChanSwitchAnn(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWiderBWChanSwitchAnn *pDst)
+tANI_U32 dot11fUnpackIeWiderBWChanSwitchAnn(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWiderBWChanSwitchAnn *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->newChanWidth = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->newCenterChanFreq0 = *pBuf;
     pBuf += 1;
-    ielen -= (tANI_U8)1;
+    tlvlen -= (tANI_U8)1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     pDst->newCenterChanFreq1 = *pBuf;
     (void)pCtx;
     return status;
@@ -5448,12 +7252,12 @@ tANI_U32 dot11fUnpackIeWiderBWChanSwitchAnn(tpAniSirGlobal pCtx, tANI_U8 *pBuf, 
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeWscAssocReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWscAssocReq *pDst)
+tANI_U32 dot11fUnpackIeWscAssocReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWscAssocReq *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_WscAssocReq,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_WscAssocReq,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeWscAssocReq. */
 
@@ -5467,12 +7271,12 @@ tANI_U32 dot11fUnpackIeWscAssocReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeWscAssocRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWscAssocRes *pDst)
+tANI_U32 dot11fUnpackIeWscAssocRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWscAssocRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_WscAssocRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_WscAssocRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeWscAssocRes. */
 
@@ -5492,12 +7296,12 @@ tANI_U32 dot11fUnpackIeWscAssocRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeWscBeacon(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWscBeacon *pDst)
+tANI_U32 dot11fUnpackIeWscBeacon(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWscBeacon *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_WscBeacon,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_WscBeacon,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeWscBeacon. */
 
@@ -5525,31 +7329,31 @@ tANI_U32 dot11fUnpackIeWscBeacon(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 iel
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeWscBeaconProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWscBeaconProbeRes *pDst)
+tANI_U32 dot11fUnpackIeWscBeaconProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWscBeaconProbeRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_WscBeaconProbeRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_WscBeaconProbeRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeWscBeaconProbeRes. */
 
 #define SigIeWscBeaconProbeRes ( 0x008b )
 
 
-tANI_U32 dot11fUnpackIeWscIEOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWscIEOpaque *pDst)
+tANI_U32 dot11fUnpackIeWscIEOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWscIEOpaque *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
-    pDst->num_data = (tANI_U8)( ielen );
-    if (ielen > 249){
+    pDst->num_data = (tANI_U8)( tlvlen );
+    if (tlvlen > 249){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
     }
 
-    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( ielen ) );
+    DOT11F_MEMCPY(pCtx, pDst->data, pBuf, ( tlvlen ) );
     (void)pCtx;
     return status;
 } /* End dot11fUnpackIeWscIEOpaque. */
@@ -5576,12 +7380,12 @@ tANI_U32 dot11fUnpackIeWscIEOpaque(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeWscProbeReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWscProbeReq *pDst)
+tANI_U32 dot11fUnpackIeWscProbeReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWscProbeReq *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_WscProbeReq,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_WscProbeReq,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeWscProbeReq. */
 
@@ -5609,12 +7413,12 @@ tANI_U32 dot11fUnpackIeWscProbeReq(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeWscProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWscProbeRes *pDst)
+tANI_U32 dot11fUnpackIeWscProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWscProbeRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_WscProbeRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_WscProbeRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeWscProbeRes. */
 
@@ -5628,33 +7432,38 @@ tANI_U32 dot11fUnpackIeWscProbeRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 i
         {0, 0, NULL, 0, 0xffff, 0, 0, 0, 0, 0, 0},
     };
 
-tANI_U32 dot11fUnpackIeWscReassocRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEWscReassocRes *pDst)
+tANI_U32 dot11fUnpackIeWscReassocRes(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEWscReassocRes *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
-    (void)pBuf; (void)ielen; /* Shutup the compiler */
+    (void)pBuf; (void)tlvlen; /* Shutup the compiler */
     pDst->present = 1;
-    status = UnpackTlvCore(pCtx,pBuf,ielen,TLVS_WscReassocRes,(tANI_U8*)pDst,sizeof(*pDst));
+    status = UnpackTlvCore(pCtx,pBuf,tlvlen,TLVS_WscReassocRes,(tANI_U8*)pDst,sizeof(*pDst));
     return status;
 } /* End dot11fUnpackIeWscReassocRes. */
 
 #define SigIeWscReassocRes ( 0x008f )
 
 
-tANI_U32 dot11fUnpackIehs20vendor_ie(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 ielen, tDot11fIEhs20vendor_ie *pDst)
+tANI_U32 dot11fUnpackIehs20vendor_ie(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, tDot11fIEhs20vendor_ie *pDst)
 {
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
     tANI_U8 tmp78__;
-    (void) pBuf; (void)ielen; /* Shutup the compiler */
+    (void) pBuf; (void)tlvlen; /* Shutup the compiler */
     if (pDst->present) status = DOT11F_DUPLICATE_IE;
     pDst->present = 1;
+	if (unlikely(tlvlen < 1)) {
+		pDst->present = 0;
+ 		return DOT11F_INCOMPLETE_IE;
+	}
+
     tmp78__ = *pBuf;
     pBuf += 1;
-    ielen -= 1;
+    tlvlen -= 1;
     pDst->dgaf_dis = tmp78__ >> 0 & 0x1;
     pDst->hs_id_present = tmp78__ >> 1 & 0x3;
     pDst->reserved = tmp78__ >> 3 & 0x1;
     pDst->release_num = tmp78__ >> 4 & 0xf;
-    if ( ! ielen )
+    if ( ! tlvlen )
     {
         return 0U;
     }
@@ -5663,14 +7472,24 @@ tANI_U32 dot11fUnpackIehs20vendor_ie(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8
         switch (pDst->hs_id_present)
         {
             case 1:
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohs(pCtx, &pDst->hs_id.pps_mo.pps_mo_id, pBuf, 0);
                 pBuf += 2;
-                ielen -= (tANI_U8)2;
+                tlvlen -= (tANI_U8)2;
             break;
             case 2:
+			if (unlikely(tlvlen < 2)) {
+				pDst->present = 0;
+ 				return DOT11F_INCOMPLETE_IE;
+			}
+
                 framesntohs(pCtx, &pDst->hs_id.anqp_domain.anqp_domain_id, pBuf, 0);
                 pBuf += 2;
-                ielen -= (tANI_U8)2;
+                tlvlen -= (tANI_U8)2;
             break;
         }
     }
@@ -20407,12 +22226,15 @@ static tANI_U32 UnpackCore(tpAniSirGlobal pCtx,
 
         if (pIe)
         {
-            if (nBufRemaining < pIe->minSize - pIe->noui - 2U)
-            {
-                FRAMES_LOG3(pCtx, FRLOGW, FRFL("The IE %s must be "
-                    "at least %d bytes in size, but there are onl"
-                    "y %d bytes remaining in this frame.\n"),
-                    pIe->name, pIe->minSize, nBufRemaining);
+			if ((nBufRemaining < pIe->minSize - pIe->noui - 2U) ||
+			    (len < pIe->minSize - pIe->noui - 2U)) {
+				FRAMES_LOG4(pCtx, FRLOGW, FRFL("The IE %s must "
+					"be at least %d bytes in size, but "
+					"there are only %d bytes remaining in "
+					"this frame or the IE reports a size "
+					"of %d bytes.\n"),
+					pIe->name, pIe->minSize, nBufRemaining,
+					(len + pIe->noui + 2U));                
                 FRAMES_DUMP(pCtx, FRLOG1, pBuf, nBuf);
                 status |= DOT11F_INCOMPLETE_IE;
                 FRAMES_DBG_BREAK();
@@ -25277,7 +27099,7 @@ tANI_U32 dot11fPackIeAPName(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_name;
@@ -25286,7 +27108,7 @@ tANI_U32 dot11fPackIeAPName(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 1;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->name ), pSrc->num_name);
         *pnConsumed += pSrc->num_name;
@@ -25294,9 +27116,9 @@ tANI_U32 dot11fPackIeAPName(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeAPName. */
@@ -25307,7 +27129,7 @@ tANI_U32 dot11fPackIeBPIndicator(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -25316,7 +27138,7 @@ tANI_U32 dot11fPackIeBPIndicator(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 4;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->indicator;
         *pnConsumed += 1;
@@ -25327,9 +27149,9 @@ tANI_U32 dot11fPackIeBPIndicator(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeBPIndicator. */
@@ -25340,7 +27162,7 @@ tANI_U32 dot11fPackIeCondensedCountryStr(tpAniSirGlobal pCtx,
                                          tANI_U32 nBuf,
                                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -25349,7 +27171,7 @@ tANI_U32 dot11fPackIeCondensedCountryStr(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 2;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, pSrc->countryStr, 2);
         *pnConsumed += 2;
@@ -25357,9 +27179,9 @@ tANI_U32 dot11fPackIeCondensedCountryStr(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeCondensedCountryStr. */
@@ -25370,7 +27192,7 @@ tANI_U32 dot11fPackIeGTK(tpAniSirGlobal pCtx,
                          tANI_U32 nBuf,
                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U16 tmp88__;
@@ -25380,7 +27202,7 @@ tANI_U32 dot11fPackIeGTK(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 2;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp88__ = 0U;
         tmp88__ |= ( pSrc->keyId << 0 );
@@ -25401,9 +27223,9 @@ tANI_U32 dot11fPackIeGTK(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeGTK. */
@@ -25414,7 +27236,7 @@ tANI_U32 dot11fPackIeHCF(tpAniSirGlobal pCtx,
                          tANI_U32 nBuf,
                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -25423,7 +27245,7 @@ tANI_U32 dot11fPackIeHCF(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 2;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->enabled;
         *pnConsumed += 1;
@@ -25431,9 +27253,9 @@ tANI_U32 dot11fPackIeHCF(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeHCF. */
@@ -25444,7 +27266,7 @@ tANI_U32 dot11fPackIeIGTK(tpAniSirGlobal pCtx,
                           tANI_U32 nBuf,
                           tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 33;
@@ -25453,7 +27275,7 @@ tANI_U32 dot11fPackIeIGTK(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 4;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, pSrc->keyID, 2);
         *pnConsumed += 2;
@@ -25470,9 +27292,9 @@ tANI_U32 dot11fPackIeIGTK(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeIGTK. */
@@ -25483,7 +27305,7 @@ tANI_U32 dot11fPackIeLLAttr(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 4;
@@ -25492,7 +27314,7 @@ tANI_U32 dot11fPackIeLLAttr(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 9;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtonl(pCtx, pBuf, pSrc->defer_threshold, 1);
         *pnConsumed += 4;
@@ -25500,9 +27322,9 @@ tANI_U32 dot11fPackIeLLAttr(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeLLAttr. */
@@ -25513,7 +27335,7 @@ tANI_U32 dot11fPackIeLoadBalance(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 7;
@@ -25522,7 +27344,7 @@ tANI_U32 dot11fPackIeLoadBalance(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 8;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, pSrc->bssid, 6);
         *pnConsumed += 6;
@@ -25533,9 +27355,9 @@ tANI_U32 dot11fPackIeLoadBalance(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeLoadBalance. */
@@ -25546,7 +27368,7 @@ tANI_U32 dot11fPackIeLoadInfo(tpAniSirGlobal pCtx,
                               tANI_U32 nBuf,
                               tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 4;
@@ -25555,7 +27377,7 @@ tANI_U32 dot11fPackIeLoadInfo(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 6;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->num_stas, 1);
         *pnConsumed += 2;
@@ -25566,9 +27388,9 @@ tANI_U32 dot11fPackIeLoadInfo(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeLoadInfo. */
@@ -25579,7 +27401,7 @@ tANI_U32 dot11fPackIePropAssocType(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -25588,7 +27410,7 @@ tANI_U32 dot11fPackIePropAssocType(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 7;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->type;
         *pnConsumed += 1;
@@ -25596,9 +27418,9 @@ tANI_U32 dot11fPackIePropAssocType(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePropAssocType. */
@@ -25609,7 +27431,7 @@ tANI_U32 dot11fPackIePropCapability(tpAniSirGlobal pCtx,
                                     tANI_U32 nBuf,
                                     tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -25618,7 +27440,7 @@ tANI_U32 dot11fPackIePropCapability(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 10;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->capability, 0);
         *pnConsumed += 2;
@@ -25626,9 +27448,9 @@ tANI_U32 dot11fPackIePropCapability(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePropCapability. */
@@ -25639,7 +27461,7 @@ tANI_U32 dot11fPackIePropChannSwitchAnn(tpAniSirGlobal pCtx,
                                         tANI_U32 nBuf,
                                         tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 4;
@@ -25648,7 +27470,7 @@ tANI_U32 dot11fPackIePropChannSwitchAnn(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 15;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->mode;
         *pnConsumed += 1;
@@ -25665,9 +27487,9 @@ tANI_U32 dot11fPackIePropChannSwitchAnn(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePropChannSwitchAnn. */
@@ -25678,7 +27500,7 @@ tANI_U32 dot11fPackIePropEDCAParams(tpAniSirGlobal pCtx,
                                     tANI_U32 nBuf,
                                     tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp89__;
@@ -25695,7 +27517,7 @@ tANI_U32 dot11fPackIePropEDCAParams(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 12;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->qos;
         *pnConsumed += 1;
@@ -25782,9 +27604,9 @@ tANI_U32 dot11fPackIePropEDCAParams(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePropEDCAParams. */
@@ -25795,7 +27617,7 @@ tANI_U32 dot11fPackIePropQuietBSS(tpAniSirGlobal pCtx,
                                   tANI_U32 nBuf,
                                   tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 6;
@@ -25804,7 +27626,7 @@ tANI_U32 dot11fPackIePropQuietBSS(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 16;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->quiet_count;
         *pnConsumed += 1;
@@ -25821,9 +27643,9 @@ tANI_U32 dot11fPackIePropQuietBSS(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePropQuietBSS. */
@@ -25834,7 +27656,7 @@ tANI_U32 dot11fPackIePropSuppRates(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_rates;
@@ -25843,7 +27665,7 @@ tANI_U32 dot11fPackIePropSuppRates(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 0;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->rates ), pSrc->num_rates);
         *pnConsumed += pSrc->num_rates;
@@ -25851,9 +27673,9 @@ tANI_U32 dot11fPackIePropSuppRates(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePropSuppRates. */
@@ -25864,7 +27686,7 @@ tANI_U32 dot11fPackIeR0KH_ID(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_PMK_R0_ID;
@@ -25873,7 +27695,7 @@ tANI_U32 dot11fPackIeR0KH_ID(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 3;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->PMK_R0_ID ), pSrc->num_PMK_R0_ID);
         *pnConsumed += pSrc->num_PMK_R0_ID;
@@ -25881,9 +27703,9 @@ tANI_U32 dot11fPackIeR0KH_ID(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeR0KH_ID. */
@@ -25894,7 +27716,7 @@ tANI_U32 dot11fPackIeR1KH_ID(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 6;
@@ -25903,7 +27725,7 @@ tANI_U32 dot11fPackIeR1KH_ID(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 1;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, pSrc->PMK_R1_ID, 6);
         *pnConsumed += 6;
@@ -25911,9 +27733,9 @@ tANI_U32 dot11fPackIeR1KH_ID(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeR1KH_ID. */
@@ -25924,7 +27746,7 @@ tANI_U32 dot11fPackIeTSFInfo(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 4;
@@ -25933,7 +27755,7 @@ tANI_U32 dot11fPackIeTSFInfo(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 1;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->TsfOffset, 0);
         *pnConsumed += 2;
@@ -25944,9 +27766,9 @@ tANI_U32 dot11fPackIeTSFInfo(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTSFInfo. */
@@ -25957,7 +27779,7 @@ tANI_U32 dot11fPackIeTaurus(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U16 tmp97__;
@@ -25967,7 +27789,7 @@ tANI_U32 dot11fPackIeTaurus(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 18;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->baTIDBitmap, 0);
         *pnConsumed += 2;
@@ -25985,9 +27807,9 @@ tANI_U32 dot11fPackIeTaurus(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTaurus. */
@@ -25998,7 +27820,7 @@ tANI_U32 dot11fPackIeTitan(tpAniSirGlobal pCtx,
                            tANI_U32 nBuf,
                            tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 4;
@@ -26007,7 +27829,7 @@ tANI_U32 dot11fPackIeTitan(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 14;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->concat_tcid_bitmap;
         *pnConsumed += 1;
@@ -26024,9 +27846,9 @@ tANI_U32 dot11fPackIeTitan(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTitan. */
@@ -26037,7 +27859,7 @@ tANI_U32 dot11fPackIeTriggerStaBgScan(tpAniSirGlobal pCtx,
                                       tANI_U32 nBuf,
                                       tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -26046,7 +27868,7 @@ tANI_U32 dot11fPackIeTriggerStaBgScan(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 17;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->enable;
         *pnConsumed += 1;
@@ -26054,9 +27876,9 @@ tANI_U32 dot11fPackIeTriggerStaBgScan(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTriggerStaBgScan. */
@@ -26067,7 +27889,7 @@ tANI_U32 dot11fPackIeVersion(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  (pSrc->num_build_version + 5);
@@ -26076,7 +27898,7 @@ tANI_U32 dot11fPackIeVersion(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 11;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtonl(pCtx, pBuf, pSrc->chip_rev, 0);
         *pnConsumed += 4;
@@ -26090,9 +27912,9 @@ tANI_U32 dot11fPackIeVersion(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeVersion. */
@@ -26103,7 +27925,7 @@ tANI_U32 dot11fPackIeWDS(tpAniSirGlobal pCtx,
                          tANI_U32 nBuf,
                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_wdsData;
@@ -26112,7 +27934,7 @@ tANI_U32 dot11fPackIeWDS(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 3;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->wdsData ), pSrc->num_wdsData);
         *pnConsumed += pSrc->num_wdsData;
@@ -26120,9 +27942,9 @@ tANI_U32 dot11fPackIeWDS(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWDS. */
@@ -26133,7 +27955,7 @@ tANI_U32 dot11fPackIeAPChannelReport(tpAniSirGlobal pCtx,
                                      tANI_U32 nBuf,
                                      tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  (pSrc->num_channelList + 1);
@@ -26142,7 +27964,7 @@ tANI_U32 dot11fPackIeAPChannelReport(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 51;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->regulatoryClass;
         *pnConsumed += 1;
@@ -26153,9 +27975,9 @@ tANI_U32 dot11fPackIeAPChannelReport(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeAPChannelReport. */
@@ -26166,7 +27988,7 @@ tANI_U32 dot11fPackIeBcnReportingDetail(tpAniSirGlobal pCtx,
                                         tANI_U32 nBuf,
                                         tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -26175,7 +27997,7 @@ tANI_U32 dot11fPackIeBcnReportingDetail(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 2;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->reportingDetail;
         *pnConsumed += 1;
@@ -26183,9 +28005,9 @@ tANI_U32 dot11fPackIeBcnReportingDetail(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeBcnReportingDetail. */
@@ -26196,7 +28018,7 @@ tANI_U32 dot11fPackIeBeaconReportFrmBody(tpAniSirGlobal pCtx,
                                          tANI_U32 nBuf,
                                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_reportedFields;
@@ -26205,7 +28027,7 @@ tANI_U32 dot11fPackIeBeaconReportFrmBody(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 1;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->reportedFields ), pSrc->num_reportedFields);
         *pnConsumed += pSrc->num_reportedFields;
@@ -26213,9 +28035,9 @@ tANI_U32 dot11fPackIeBeaconReportFrmBody(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeBeaconReportFrmBody. */
@@ -26226,7 +28048,7 @@ tANI_U32 dot11fPackIeBeaconReporting(tpAniSirGlobal pCtx,
                                      tANI_U32 nBuf,
                                      tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -26235,7 +28057,7 @@ tANI_U32 dot11fPackIeBeaconReporting(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 1;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->reportingCondition;
         *pnConsumed += 1;
@@ -26246,9 +28068,9 @@ tANI_U32 dot11fPackIeBeaconReporting(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeBeaconReporting. */
@@ -26259,7 +28081,7 @@ tANI_U32 dot11fPackIeMeasurementPilot(tpAniSirGlobal pCtx,
                                       tANI_U32 nBuf,
                                       tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  (pSrc->num_vendorSpecific + 1);
@@ -26268,7 +28090,7 @@ tANI_U32 dot11fPackIeMeasurementPilot(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 66;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->measurementPilot;
         *pnConsumed += 1;
@@ -26279,9 +28101,9 @@ tANI_U32 dot11fPackIeMeasurementPilot(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeMeasurementPilot. */
@@ -26292,7 +28114,7 @@ tANI_U32 dot11fPackIeMultiBssid(tpAniSirGlobal pCtx,
                                 tANI_U32 nBuf,
                                 tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  (pSrc->num_vendorSpecific + 1);
@@ -26301,7 +28123,7 @@ tANI_U32 dot11fPackIeMultiBssid(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 71;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->maxBSSIDIndicator;
         *pnConsumed += 1;
@@ -26312,9 +28134,9 @@ tANI_U32 dot11fPackIeMultiBssid(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeMultiBssid. */
@@ -26325,7 +28147,7 @@ tANI_U32 dot11fPackIeRICData(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 4;
@@ -26334,7 +28156,7 @@ tANI_U32 dot11fPackIeRICData(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 57;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->Identifier;
         *pnConsumed += 1;
@@ -26348,9 +28170,9 @@ tANI_U32 dot11fPackIeRICData(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeRICData. */
@@ -26361,7 +28183,7 @@ tANI_U32 dot11fPackIeRICDescriptor(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  (pSrc->num_variableData + 1);
@@ -26370,7 +28192,7 @@ tANI_U32 dot11fPackIeRICDescriptor(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 75;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->resourceType;
         *pnConsumed += 1;
@@ -26381,9 +28203,9 @@ tANI_U32 dot11fPackIeRICDescriptor(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeRICDescriptor. */
@@ -26394,7 +28216,7 @@ tANI_U32 dot11fPackIeRRMEnabledCap(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp98__;
@@ -26408,7 +28230,7 @@ tANI_U32 dot11fPackIeRRMEnabledCap(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 70;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp98__ = 0U;
         tmp98__ |= ( pSrc->LinkMeasurement << 0 );
@@ -26467,9 +28289,9 @@ tANI_U32 dot11fPackIeRRMEnabledCap(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeRRMEnabledCap. */
@@ -26480,7 +28302,7 @@ tANI_U32 dot11fPackIeRequestedInfo(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_requested_eids;
@@ -26489,7 +28311,7 @@ tANI_U32 dot11fPackIeRequestedInfo(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 10;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->requested_eids ), pSrc->num_requested_eids);
         *pnConsumed += pSrc->num_requested_eids;
@@ -26497,9 +28319,9 @@ tANI_U32 dot11fPackIeRequestedInfo(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeRequestedInfo. */
@@ -26510,7 +28332,7 @@ tANI_U32 dot11fPackIeSSID(tpAniSirGlobal pCtx,
                           tANI_U32 nBuf,
                           tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_ssid;
@@ -26519,7 +28341,7 @@ tANI_U32 dot11fPackIeSSID(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 0;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->ssid ), pSrc->num_ssid);
         *pnConsumed += pSrc->num_ssid;
@@ -26527,9 +28349,9 @@ tANI_U32 dot11fPackIeSSID(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeSSID. */
@@ -26540,7 +28362,7 @@ tANI_U32 dot11fPackIeSchedule(tpAniSirGlobal pCtx,
                               tANI_U32 nBuf,
                               tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U16 tmp103__;
@@ -26550,7 +28372,7 @@ tANI_U32 dot11fPackIeSchedule(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 15;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp103__ = 0U;
         tmp103__ |= ( pSrc->aggregation << 0 );
@@ -26576,9 +28398,9 @@ tANI_U32 dot11fPackIeSchedule(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeSchedule. */
@@ -26589,7 +28411,7 @@ tANI_U32 dot11fPackIeTCLAS(tpAniSirGlobal pCtx,
                            tANI_U32 nBuf,
                            tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -26600,7 +28422,7 @@ tANI_U32 dot11fPackIeTCLAS(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 14;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->user_priority;
         *pnConsumed += 1;
@@ -26681,9 +28503,9 @@ tANI_U32 dot11fPackIeTCLAS(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeTCLAS. */
@@ -26694,7 +28516,7 @@ tANI_U32 dot11fPackIeTCLASSPROC(tpAniSirGlobal pCtx,
                                 tANI_U32 nBuf,
                                 tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -26703,7 +28525,7 @@ tANI_U32 dot11fPackIeTCLASSPROC(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 44;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->processing;
         *pnConsumed += 1;
@@ -26711,9 +28533,9 @@ tANI_U32 dot11fPackIeTCLASSPROC(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTCLASSPROC. */
@@ -26724,7 +28546,7 @@ tANI_U32 dot11fPackIeTSDelay(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 4;
@@ -26733,7 +28555,7 @@ tANI_U32 dot11fPackIeTSDelay(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 43;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtonl(pCtx, pBuf, pSrc->delay, 0);
         *pnConsumed += 4;
@@ -26741,9 +28563,9 @@ tANI_U32 dot11fPackIeTSDelay(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTSDelay. */
@@ -26754,7 +28576,7 @@ tANI_U32 dot11fPackIeTSPEC(tpAniSirGlobal pCtx,
                            tANI_U32 nBuf,
                            tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U16 tmp104__;
@@ -26766,7 +28588,7 @@ tANI_U32 dot11fPackIeTSPEC(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 13;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp104__ = 0U;
         tmp104__ |= ( pSrc->traffic_type << 0 );
@@ -26840,9 +28662,9 @@ tANI_U32 dot11fPackIeTSPEC(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTSPEC. */
@@ -26853,7 +28675,7 @@ tANI_U32 dot11fPackIeWMMSchedule(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U16 tmp107__;
@@ -26863,7 +28685,7 @@ tANI_U32 dot11fPackIeWMMSchedule(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -26902,9 +28724,9 @@ tANI_U32 dot11fPackIeWMMSchedule(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWMMSchedule. */
@@ -26915,7 +28737,7 @@ tANI_U32 dot11fPackIeWMMTCLAS(tpAniSirGlobal pCtx,
                               tANI_U32 nBuf,
                               tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -26926,7 +28748,7 @@ tANI_U32 dot11fPackIeWMMTCLAS(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27020,9 +28842,9 @@ tANI_U32 dot11fPackIeWMMTCLAS(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeWMMTCLAS. */
@@ -27033,7 +28855,7 @@ tANI_U32 dot11fPackIeWMMTCLASPROC(tpAniSirGlobal pCtx,
                                   tANI_U32 nBuf,
                                   tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -27042,7 +28864,7 @@ tANI_U32 dot11fPackIeWMMTCLASPROC(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27063,9 +28885,9 @@ tANI_U32 dot11fPackIeWMMTCLASPROC(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWMMTCLASPROC. */
@@ -27076,7 +28898,7 @@ tANI_U32 dot11fPackIeWMMTSDelay(tpAniSirGlobal pCtx,
                                 tANI_U32 nBuf,
                                 tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 5;
@@ -27085,7 +28907,7 @@ tANI_U32 dot11fPackIeWMMTSDelay(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27106,9 +28928,9 @@ tANI_U32 dot11fPackIeWMMTSDelay(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWMMTSDelay. */
@@ -27119,7 +28941,7 @@ tANI_U32 dot11fPackIeWMMTSPEC(tpAniSirGlobal pCtx,
                               tANI_U32 nBuf,
                               tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U16 tmp108__;
@@ -27131,7 +28953,7 @@ tANI_U32 dot11fPackIeWMMTSPEC(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27218,9 +29040,9 @@ tANI_U32 dot11fPackIeWMMTSPEC(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWMMTSPEC. */
@@ -27231,7 +29053,7 @@ tANI_U32 dot11fPackIeAID(tpAniSirGlobal pCtx,
                          tANI_U32 nBuf,
                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -27240,7 +29062,7 @@ tANI_U32 dot11fPackIeAID(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 197;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->assocId, 0);
         *pnConsumed += 2;
@@ -27248,9 +29070,9 @@ tANI_U32 dot11fPackIeAID(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeAID. */
@@ -27261,7 +29083,7 @@ tANI_U32 dot11fPackIeAirgo(tpAniSirGlobal pCtx,
                            tANI_U32 nBuf,
                            tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -27272,7 +29094,7 @@ tANI_U32 dot11fPackIeAirgo(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; --nBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; --nBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; --nBuf; ++(*pnConsumed);
@@ -27290,9 +29112,9 @@ tANI_U32 dot11fPackIeAirgo(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeAirgo. */
@@ -27303,7 +29125,7 @@ tANI_U32 dot11fPackIeCFParams(tpAniSirGlobal pCtx,
                               tANI_U32 nBuf,
                               tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 6;
@@ -27312,7 +29134,7 @@ tANI_U32 dot11fPackIeCFParams(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 4;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->cfp_count;
         *pnConsumed += 1;
@@ -27329,9 +29151,9 @@ tANI_U32 dot11fPackIeCFParams(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeCFParams. */
@@ -27342,7 +29164,7 @@ tANI_U32 dot11fPackIeChallengeText(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_text;
@@ -27351,7 +29173,7 @@ tANI_U32 dot11fPackIeChallengeText(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 16;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->text ), pSrc->num_text);
         *pnConsumed += pSrc->num_text;
@@ -27359,9 +29181,9 @@ tANI_U32 dot11fPackIeChallengeText(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeChallengeText. */
@@ -27372,7 +29194,7 @@ tANI_U32 dot11fPackIeChanSwitchAnn(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 3;
@@ -27381,7 +29203,7 @@ tANI_U32 dot11fPackIeChanSwitchAnn(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 37;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->switchMode;
         *pnConsumed += 1;
@@ -27395,9 +29217,9 @@ tANI_U32 dot11fPackIeChanSwitchAnn(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeChanSwitchAnn. */
@@ -27408,7 +29230,7 @@ tANI_U32 dot11fPackIeCountry(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -27419,7 +29241,7 @@ tANI_U32 dot11fPackIeCountry(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 7;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, pSrc->country, 3);
         *pnConsumed += 3;
@@ -27433,9 +29255,9 @@ tANI_U32 dot11fPackIeCountry(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeCountry. */
@@ -27446,7 +29268,7 @@ tANI_U32 dot11fPackIeDSParams(tpAniSirGlobal pCtx,
                               tANI_U32 nBuf,
                               tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -27455,7 +29277,7 @@ tANI_U32 dot11fPackIeDSParams(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 3;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->curr_channel;
         *pnConsumed += 1;
@@ -27463,9 +29285,9 @@ tANI_U32 dot11fPackIeDSParams(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeDSParams. */
@@ -27476,7 +29298,7 @@ tANI_U32 dot11fPackIeEDCAParamSet(tpAniSirGlobal pCtx,
                                   tANI_U32 nBuf,
                                   tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp111__;
@@ -27493,7 +29315,7 @@ tANI_U32 dot11fPackIeEDCAParamSet(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 12;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->qos;
         *pnConsumed += 1;
@@ -27580,9 +29402,9 @@ tANI_U32 dot11fPackIeEDCAParamSet(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeEDCAParamSet. */
@@ -27593,7 +29415,7 @@ tANI_U32 dot11fPackIeERPInfo(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp119__;
@@ -27603,7 +29425,7 @@ tANI_U32 dot11fPackIeERPInfo(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 42;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp119__ = 0U;
         tmp119__ |= ( pSrc->non_erp_present << 0 );
@@ -27617,9 +29439,9 @@ tANI_U32 dot11fPackIeERPInfo(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeERPInfo. */
@@ -27630,7 +29452,7 @@ tANI_U32 dot11fPackIeESECckmOpaque(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_data;
@@ -27639,7 +29461,7 @@ tANI_U32 dot11fPackIeESECckmOpaque(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 156;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27655,9 +29477,9 @@ tANI_U32 dot11fPackIeESECckmOpaque(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeESECckmOpaque. */
@@ -27668,7 +29490,7 @@ tANI_U32 dot11fPackIeESERadMgmtCap(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp120__;
@@ -27678,7 +29500,7 @@ tANI_U32 dot11fPackIeESERadMgmtCap(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27701,9 +29523,9 @@ tANI_U32 dot11fPackIeESERadMgmtCap(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeESERadMgmtCap. */
@@ -27714,7 +29536,7 @@ tANI_U32 dot11fPackIeESETrafStrmMet(tpAniSirGlobal pCtx,
                                     tANI_U32 nBuf,
                                     tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 4;
@@ -27723,7 +29545,7 @@ tANI_U32 dot11fPackIeESETrafStrmMet(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27745,9 +29567,9 @@ tANI_U32 dot11fPackIeESETrafStrmMet(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeESETrafStrmMet. */
@@ -27758,7 +29580,7 @@ tANI_U32 dot11fPackIeESETrafStrmRateSet(tpAniSirGlobal pCtx,
                                         tANI_U32 nBuf,
                                         tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  (pSrc->num_tsrates + 1);
@@ -27767,7 +29589,7 @@ tANI_U32 dot11fPackIeESETrafStrmRateSet(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27786,9 +29608,9 @@ tANI_U32 dot11fPackIeESETrafStrmRateSet(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeESETrafStrmRateSet. */
@@ -27799,7 +29621,7 @@ tANI_U32 dot11fPackIeESETxmitPower(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -27808,7 +29630,7 @@ tANI_U32 dot11fPackIeESETxmitPower(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 150;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27827,9 +29649,9 @@ tANI_U32 dot11fPackIeESETxmitPower(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeESETxmitPower. */
@@ -27840,7 +29662,7 @@ tANI_U32 dot11fPackIeESEVersion(tpAniSirGlobal pCtx,
                                 tANI_U32 nBuf,
                                 tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -27849,7 +29671,7 @@ tANI_U32 dot11fPackIeESEVersion(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -27865,9 +29687,9 @@ tANI_U32 dot11fPackIeESEVersion(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeESEVersion. */
@@ -27878,7 +29700,7 @@ tANI_U32 dot11fPackIeExtCap(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_bytes;
@@ -27887,7 +29709,7 @@ tANI_U32 dot11fPackIeExtCap(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 127;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->bytes ), pSrc->num_bytes);
         *pnConsumed += pSrc->num_bytes;
@@ -27895,9 +29717,9 @@ tANI_U32 dot11fPackIeExtCap(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeExtCap. */
@@ -27908,7 +29730,7 @@ tANI_U32 dot11fPackIeExtChanSwitchAnn(tpAniSirGlobal pCtx,
                                       tANI_U32 nBuf,
                                       tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -27917,7 +29739,7 @@ tANI_U32 dot11fPackIeExtChanSwitchAnn(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 62;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->secondaryChannelOffset;
         *pnConsumed += 1;
@@ -27925,9 +29747,9 @@ tANI_U32 dot11fPackIeExtChanSwitchAnn(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeExtChanSwitchAnn. */
@@ -27938,7 +29760,7 @@ tANI_U32 dot11fPackIeExtSuppRates(tpAniSirGlobal pCtx,
                                   tANI_U32 nBuf,
                                   tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_rates;
@@ -27947,7 +29769,7 @@ tANI_U32 dot11fPackIeExtSuppRates(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 50;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->rates ), pSrc->num_rates);
         *pnConsumed += pSrc->num_rates;
@@ -27955,9 +29777,9 @@ tANI_U32 dot11fPackIeExtSuppRates(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeExtSuppRates. */
@@ -27968,7 +29790,7 @@ tANI_U32 dot11fPackIeFHParamSet(tpAniSirGlobal pCtx,
                                 tANI_U32 nBuf,
                                 tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 5;
@@ -27977,7 +29799,7 @@ tANI_U32 dot11fPackIeFHParamSet(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 2;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->dwell_time, 0);
         *pnConsumed += 2;
@@ -27994,9 +29816,9 @@ tANI_U32 dot11fPackIeFHParamSet(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeFHParamSet. */
@@ -28007,7 +29829,7 @@ tANI_U32 dot11fPackIeFHParams(tpAniSirGlobal pCtx,
                               tANI_U32 nBuf,
                               tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -28016,7 +29838,7 @@ tANI_U32 dot11fPackIeFHParams(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 8;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->radix;
         *pnConsumed += 1;
@@ -28027,9 +29849,9 @@ tANI_U32 dot11fPackIeFHParams(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeFHParams. */
@@ -28040,7 +29862,7 @@ tANI_U32 dot11fPackIeFHPattTable(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  (pSrc->num_randtable + 4);
@@ -28049,7 +29871,7 @@ tANI_U32 dot11fPackIeFHPattTable(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 9;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->flag;
         *pnConsumed += 1;
@@ -28069,9 +29891,9 @@ tANI_U32 dot11fPackIeFHPattTable(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeFHPattTable. */
@@ -28082,7 +29904,7 @@ tANI_U32 dot11fPackIeFTInfo(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U16 tmp121__;
@@ -28094,7 +29916,7 @@ tANI_U32 dot11fPackIeFTInfo(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 55;
         ++pBuf; --nBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; --nBuf; ++(*pnConsumed);
         tmp121__ = 0U;
         tmp121__ |= ( pSrc->reserved << 0 );
@@ -28122,9 +29944,9 @@ tANI_U32 dot11fPackIeFTInfo(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeFTInfo. */
@@ -28135,7 +29957,7 @@ tANI_U32 dot11fPackIeHT2040BSSCoexistence(tpAniSirGlobal pCtx,
                                           tANI_U32 nBuf,
                                           tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp122__;
@@ -28145,7 +29967,7 @@ tANI_U32 dot11fPackIeHT2040BSSCoexistence(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 72;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp122__ = 0U;
         tmp122__ |= ( pSrc->infoRequest << 0 );
@@ -28161,9 +29983,9 @@ tANI_U32 dot11fPackIeHT2040BSSCoexistence(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeHT2040BSSCoexistence. */
@@ -28174,7 +29996,7 @@ tANI_U32 dot11fPackIeHT2040BSSIntolerantReport(tpAniSirGlobal pCtx,
                                                tANI_U32 nBuf,
                                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  (pSrc->num_channelList + 1);
@@ -28183,7 +30005,7 @@ tANI_U32 dot11fPackIeHT2040BSSIntolerantReport(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 73;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->operatingClass;
         *pnConsumed += 1;
@@ -28194,9 +30016,9 @@ tANI_U32 dot11fPackIeHT2040BSSIntolerantReport(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeHT2040BSSIntolerantReport. */
@@ -28207,7 +30029,7 @@ tANI_U32 dot11fPackIeHTCaps(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U16 tmp123__;
@@ -28221,7 +30043,7 @@ tANI_U32 dot11fPackIeHTCaps(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 45;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp123__ = 0U;
         tmp123__ |= ( pSrc->advCodingCap << 0 );
@@ -28303,9 +30125,9 @@ tANI_U32 dot11fPackIeHTCaps(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeHTCaps. */
@@ -28316,7 +30138,7 @@ tANI_U32 dot11fPackIeHTInfo(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp128__;
@@ -28328,7 +30150,7 @@ tANI_U32 dot11fPackIeHTInfo(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 61;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->primaryChannel;
         *pnConsumed += 1;
@@ -28374,9 +30196,9 @@ tANI_U32 dot11fPackIeHTInfo(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeHTInfo. */
@@ -28387,7 +30209,7 @@ tANI_U32 dot11fPackIeIBSSParams(tpAniSirGlobal pCtx,
                                 tANI_U32 nBuf,
                                 tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -28396,7 +30218,7 @@ tANI_U32 dot11fPackIeIBSSParams(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 6;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->atim, 0);
         *pnConsumed += 2;
@@ -28404,9 +30226,9 @@ tANI_U32 dot11fPackIeIBSSParams(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeIBSSParams. */
@@ -28417,7 +30239,7 @@ tANI_U32 dot11fPackIeLinkIdentifier(tpAniSirGlobal pCtx,
                                     tANI_U32 nBuf,
                                     tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 18;
@@ -28426,7 +30248,7 @@ tANI_U32 dot11fPackIeLinkIdentifier(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 101;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, pSrc->bssid, 6);
         *pnConsumed += 6;
@@ -28440,9 +30262,9 @@ tANI_U32 dot11fPackIeLinkIdentifier(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeLinkIdentifier. */
@@ -28453,7 +30275,7 @@ tANI_U32 dot11fPackIeMeasurementReport(tpAniSirGlobal pCtx,
                                        tANI_U32 nBuf,
                                        tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp131__;
@@ -28467,7 +30289,7 @@ tANI_U32 dot11fPackIeMeasurementReport(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 39;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->token;
         *pnConsumed += 1;
@@ -28607,9 +30429,9 @@ tANI_U32 dot11fPackIeMeasurementReport(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeMeasurementReport. */
@@ -28620,7 +30442,7 @@ tANI_U32 dot11fPackIeMeasurementRequest(tpAniSirGlobal pCtx,
                                         tANI_U32 nBuf,
                                         tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp134__;
@@ -28632,7 +30454,7 @@ tANI_U32 dot11fPackIeMeasurementRequest(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 38;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->measurement_token;
         *pnConsumed += 1;
@@ -28717,9 +30539,9 @@ tANI_U32 dot11fPackIeMeasurementRequest(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeMeasurementRequest. */
@@ -28730,7 +30552,7 @@ tANI_U32 dot11fPackIeMobilityDomain(tpAniSirGlobal pCtx,
                                     tANI_U32 nBuf,
                                     tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp135__;
@@ -28740,7 +30562,7 @@ tANI_U32 dot11fPackIeMobilityDomain(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 54;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->MDID, 0);
         *pnConsumed += 2;
@@ -28756,9 +30578,9 @@ tANI_U32 dot11fPackIeMobilityDomain(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeMobilityDomain. */
@@ -28769,7 +30591,7 @@ tANI_U32 dot11fPackIeNeighborReport(tpAniSirGlobal pCtx,
                                     tANI_U32 nBuf,
                                     tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp136__;
@@ -28782,7 +30604,7 @@ tANI_U32 dot11fPackIeNeighborReport(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 52;
         ++pBuf; --nBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; --nBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, pSrc->bssid, 6);
         *pnConsumed += 6;
@@ -28830,9 +30652,9 @@ tANI_U32 dot11fPackIeNeighborReport(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeNeighborReport. */
@@ -28843,7 +30665,7 @@ tANI_U32 dot11fPackIeOBSSScanParameters(tpAniSirGlobal pCtx,
                                         tANI_U32 nBuf,
                                         tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 14;
@@ -28852,7 +30674,7 @@ tANI_U32 dot11fPackIeOBSSScanParameters(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 74;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->obssScanPassiveDwell, 0);
         *pnConsumed += 2;
@@ -28878,9 +30700,9 @@ tANI_U32 dot11fPackIeOBSSScanParameters(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeOBSSScanParameters. */
@@ -28891,7 +30713,7 @@ tANI_U32 dot11fPackIeOperatingMode(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp138__;
@@ -28901,7 +30723,7 @@ tANI_U32 dot11fPackIeOperatingMode(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 199;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp138__ = 0U;
         tmp138__ |= ( pSrc->chanWidth << 0 );
@@ -28915,9 +30737,9 @@ tANI_U32 dot11fPackIeOperatingMode(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeOperatingMode. */
@@ -28928,7 +30750,7 @@ tANI_U32 dot11fPackIeP2PAssocReq(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -28942,7 +30764,7 @@ tANI_U32 dot11fPackIeP2PAssocReq(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -28957,7 +30779,7 @@ tANI_U32 dot11fPackIeP2PAssocReq(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PAssocReq+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -28971,7 +30793,7 @@ tANI_U32 dot11fPackIeP2PAssocRes(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -28985,7 +30807,7 @@ tANI_U32 dot11fPackIeP2PAssocRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29000,7 +30822,7 @@ tANI_U32 dot11fPackIeP2PAssocRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PAssocRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29014,7 +30836,7 @@ tANI_U32 dot11fPackIeP2PBeacon(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29028,7 +30850,7 @@ tANI_U32 dot11fPackIeP2PBeacon(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29043,7 +30865,7 @@ tANI_U32 dot11fPackIeP2PBeacon(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PBeacon+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29057,7 +30879,7 @@ tANI_U32 dot11fPackIeP2PBeaconProbeRes(tpAniSirGlobal pCtx,
                                        tANI_U32 nBuf,
                                        tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29071,7 +30893,7 @@ tANI_U32 dot11fPackIeP2PBeaconProbeRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29086,7 +30908,7 @@ tANI_U32 dot11fPackIeP2PBeaconProbeRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PBeaconProbeRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29100,7 +30922,7 @@ tANI_U32 dot11fPackIeP2PDeAuth(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29114,7 +30936,7 @@ tANI_U32 dot11fPackIeP2PDeAuth(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29129,7 +30951,7 @@ tANI_U32 dot11fPackIeP2PDeAuth(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PDeAuth+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29143,7 +30965,7 @@ tANI_U32 dot11fPackIeP2PDeviceDiscoverabilityReq(tpAniSirGlobal pCtx,
                                                  tANI_U32 nBuf,
                                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29157,7 +30979,7 @@ tANI_U32 dot11fPackIeP2PDeviceDiscoverabilityReq(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29172,7 +30994,7 @@ tANI_U32 dot11fPackIeP2PDeviceDiscoverabilityReq(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PDeviceDiscoverabilityReq+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29186,7 +31008,7 @@ tANI_U32 dot11fPackIeP2PDeviceDiscoverabilityRes(tpAniSirGlobal pCtx,
                                                  tANI_U32 nBuf,
                                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29200,7 +31022,7 @@ tANI_U32 dot11fPackIeP2PDeviceDiscoverabilityRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29215,7 +31037,7 @@ tANI_U32 dot11fPackIeP2PDeviceDiscoverabilityRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PDeviceDiscoverabilityRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29229,7 +31051,7 @@ tANI_U32 dot11fPackIeP2PDisAssoc(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29243,7 +31065,7 @@ tANI_U32 dot11fPackIeP2PDisAssoc(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29258,7 +31080,7 @@ tANI_U32 dot11fPackIeP2PDisAssoc(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PDisAssoc+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29272,7 +31094,7 @@ tANI_U32 dot11fPackIeP2PGONegCnf(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29286,7 +31108,7 @@ tANI_U32 dot11fPackIeP2PGONegCnf(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29301,7 +31123,7 @@ tANI_U32 dot11fPackIeP2PGONegCnf(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PGONegCnf+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29315,7 +31137,7 @@ tANI_U32 dot11fPackIeP2PGONegReq(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29329,7 +31151,7 @@ tANI_U32 dot11fPackIeP2PGONegReq(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29344,7 +31166,7 @@ tANI_U32 dot11fPackIeP2PGONegReq(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PGONegReq+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29358,7 +31180,7 @@ tANI_U32 dot11fPackIeP2PGONegRes(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29372,7 +31194,7 @@ tANI_U32 dot11fPackIeP2PGONegRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29387,7 +31209,7 @@ tANI_U32 dot11fPackIeP2PGONegRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PGONegRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29401,7 +31223,7 @@ tANI_U32 dot11fPackIeP2PGONegWPS(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29415,7 +31237,7 @@ tANI_U32 dot11fPackIeP2PGONegWPS(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29430,7 +31252,7 @@ tANI_U32 dot11fPackIeP2PGONegWPS(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PGONegWPS+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29444,7 +31266,7 @@ tANI_U32 dot11fPackIeP2PIEOpaque(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_data;
@@ -29453,7 +31275,7 @@ tANI_U32 dot11fPackIeP2PIEOpaque(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x50;
         ++pBuf; ++(*pnConsumed);
@@ -29469,9 +31291,9 @@ tANI_U32 dot11fPackIeP2PIEOpaque(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeP2PIEOpaque. */
@@ -29482,7 +31304,7 @@ tANI_U32 dot11fPackIeP2PInvitationReq(tpAniSirGlobal pCtx,
                                       tANI_U32 nBuf,
                                       tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29496,7 +31318,7 @@ tANI_U32 dot11fPackIeP2PInvitationReq(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29511,7 +31333,7 @@ tANI_U32 dot11fPackIeP2PInvitationReq(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PInvitationReq+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29525,7 +31347,7 @@ tANI_U32 dot11fPackIeP2PInvitationRes(tpAniSirGlobal pCtx,
                                       tANI_U32 nBuf,
                                       tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29539,7 +31361,7 @@ tANI_U32 dot11fPackIeP2PInvitationRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29554,7 +31376,7 @@ tANI_U32 dot11fPackIeP2PInvitationRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PInvitationRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29568,7 +31390,7 @@ tANI_U32 dot11fPackIeP2PNoticeOfAbsence(tpAniSirGlobal pCtx,
                                         tANI_U32 nBuf,
                                         tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29582,7 +31404,7 @@ tANI_U32 dot11fPackIeP2PNoticeOfAbsence(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29597,7 +31419,7 @@ tANI_U32 dot11fPackIeP2PNoticeOfAbsence(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PNoticeOfAbsence+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29611,7 +31433,7 @@ tANI_U32 dot11fPackIeP2PPresenceResponse(tpAniSirGlobal pCtx,
                                          tANI_U32 nBuf,
                                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29625,7 +31447,7 @@ tANI_U32 dot11fPackIeP2PPresenceResponse(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29640,7 +31462,7 @@ tANI_U32 dot11fPackIeP2PPresenceResponse(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PPresenceResponse+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29654,7 +31476,7 @@ tANI_U32 dot11fPackIeP2PProbeReq(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29668,7 +31490,7 @@ tANI_U32 dot11fPackIeP2PProbeReq(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29683,7 +31505,7 @@ tANI_U32 dot11fPackIeP2PProbeReq(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PProbeReq+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29697,7 +31519,7 @@ tANI_U32 dot11fPackIeP2PProbeRes(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29711,7 +31533,7 @@ tANI_U32 dot11fPackIeP2PProbeRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29726,7 +31548,7 @@ tANI_U32 dot11fPackIeP2PProbeRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PProbeRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29740,7 +31562,7 @@ tANI_U32 dot11fPackIeP2PProvisionDiscoveryReq(tpAniSirGlobal pCtx,
                                               tANI_U32 nBuf,
                                               tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29754,7 +31576,7 @@ tANI_U32 dot11fPackIeP2PProvisionDiscoveryReq(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x50;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29769,7 +31591,7 @@ tANI_U32 dot11fPackIeP2PProvisionDiscoveryReq(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PProvisionDiscoveryReq+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29783,7 +31605,7 @@ tANI_U32 dot11fPackIeP2PWSCProvisionDiscoveryRes(tpAniSirGlobal pCtx,
                                                  tANI_U32 nBuf,
                                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -29797,7 +31619,7 @@ tANI_U32 dot11fPackIeP2PWSCProvisionDiscoveryRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -29812,7 +31634,7 @@ tANI_U32 dot11fPackIeP2PWSCProvisionDiscoveryRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_P2PWSCProvisionDiscoveryRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -29826,7 +31648,7 @@ tANI_U32 dot11fPackIePTIControl(tpAniSirGlobal pCtx,
                                 tANI_U32 nBuf,
                                 tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 3;
@@ -29835,7 +31657,7 @@ tANI_U32 dot11fPackIePTIControl(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 105;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->tid;
         *pnConsumed += 1;
@@ -29846,9 +31668,9 @@ tANI_U32 dot11fPackIePTIControl(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePTIControl. */
@@ -29859,7 +31681,7 @@ tANI_U32 dot11fPackIePUBufferStatus(tpAniSirGlobal pCtx,
                                     tANI_U32 nBuf,
                                     tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp139__;
@@ -29869,7 +31691,7 @@ tANI_U32 dot11fPackIePUBufferStatus(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 106;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp139__ = 0U;
         tmp139__ |= ( pSrc->ac_bk_traffic_aval << 0 );
@@ -29884,9 +31706,9 @@ tANI_U32 dot11fPackIePUBufferStatus(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePUBufferStatus. */
@@ -29897,7 +31719,7 @@ tANI_U32 dot11fPackIePowerCaps(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -29906,7 +31728,7 @@ tANI_U32 dot11fPackIePowerCaps(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 33;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->minTxPower;
         *pnConsumed += 1;
@@ -29917,9 +31739,9 @@ tANI_U32 dot11fPackIePowerCaps(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePowerCaps. */
@@ -29930,7 +31752,7 @@ tANI_U32 dot11fPackIePowerConstraints(tpAniSirGlobal pCtx,
                                       tANI_U32 nBuf,
                                       tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -29939,7 +31761,7 @@ tANI_U32 dot11fPackIePowerConstraints(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 32;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->localPowerConstraints;
         *pnConsumed += 1;
@@ -29947,9 +31769,9 @@ tANI_U32 dot11fPackIePowerConstraints(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIePowerConstraints. */
@@ -29960,7 +31782,7 @@ tANI_U32 dot11fPackIeQBSSLoad(tpAniSirGlobal pCtx,
                               tANI_U32 nBuf,
                               tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 5;
@@ -29969,7 +31791,7 @@ tANI_U32 dot11fPackIeQBSSLoad(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 11;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->stacount, 0);
         *pnConsumed += 2;
@@ -29983,9 +31805,9 @@ tANI_U32 dot11fPackIeQBSSLoad(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeQBSSLoad. */
@@ -29996,7 +31818,7 @@ tANI_U32 dot11fPackIeQOSCapsAp(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp140__;
@@ -30006,7 +31828,7 @@ tANI_U32 dot11fPackIeQOSCapsAp(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 46;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp140__ = 0U;
         tmp140__ |= ( pSrc->count << 0 );
@@ -30021,9 +31843,9 @@ tANI_U32 dot11fPackIeQOSCapsAp(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeQOSCapsAp. */
@@ -30034,7 +31856,7 @@ tANI_U32 dot11fPackIeQOSCapsStation(tpAniSirGlobal pCtx,
                                     tANI_U32 nBuf,
                                     tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp141__;
@@ -30044,7 +31866,7 @@ tANI_U32 dot11fPackIeQOSCapsStation(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 46;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp141__ = 0U;
         tmp141__ |= ( pSrc->acvo_uapsd << 0 );
@@ -30061,9 +31883,9 @@ tANI_U32 dot11fPackIeQOSCapsStation(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeQOSCapsStation. */
@@ -30074,7 +31896,7 @@ tANI_U32 dot11fPackIeQosMapSet(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_dscp_exceptions;
@@ -30083,7 +31905,7 @@ tANI_U32 dot11fPackIeQosMapSet(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 110;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->dscp_exceptions ), pSrc->num_dscp_exceptions);
         *pnConsumed += pSrc->num_dscp_exceptions;
@@ -30091,9 +31913,9 @@ tANI_U32 dot11fPackIeQosMapSet(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeQosMapSet. */
@@ -30104,7 +31926,7 @@ tANI_U32 dot11fPackIeQuiet(tpAniSirGlobal pCtx,
                            tANI_U32 nBuf,
                            tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 6;
@@ -30113,7 +31935,7 @@ tANI_U32 dot11fPackIeQuiet(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 40;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->count;
         *pnConsumed += 1;
@@ -30130,9 +31952,9 @@ tANI_U32 dot11fPackIeQuiet(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeQuiet. */
@@ -30143,7 +31965,7 @@ tANI_U32 dot11fPackIeRCPIIE(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -30152,7 +31974,7 @@ tANI_U32 dot11fPackIeRCPIIE(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 53;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->rcpi;
         *pnConsumed += 1;
@@ -30160,9 +31982,9 @@ tANI_U32 dot11fPackIeRCPIIE(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeRCPIIE. */
@@ -30199,7 +32021,7 @@ tANI_U32 dot11fPackIeRSN(tpAniSirGlobal pCtx,
                          tANI_U32 nBuf,
                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -30210,7 +32032,7 @@ tANI_U32 dot11fPackIeRSN(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 48;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->version, 0);
         *pnConsumed += 2;
@@ -30260,9 +32082,9 @@ tANI_U32 dot11fPackIeRSN(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeRSN. */
@@ -30273,7 +32095,7 @@ tANI_U32 dot11fPackIeRSNIIE(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 1;
@@ -30282,7 +32104,7 @@ tANI_U32 dot11fPackIeRSNIIE(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 65;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->rsni;
         *pnConsumed += 1;
@@ -30290,9 +32112,9 @@ tANI_U32 dot11fPackIeRSNIIE(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeRSNIIE. */
@@ -30303,7 +32125,7 @@ tANI_U32 dot11fPackIeRSNOpaque(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_data;
@@ -30312,7 +32134,7 @@ tANI_U32 dot11fPackIeRSNOpaque(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 48;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->data ), pSrc->num_data);
         *pnConsumed += pSrc->num_data;
@@ -30320,9 +32142,9 @@ tANI_U32 dot11fPackIeRSNOpaque(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeRSNOpaque. */
@@ -30333,7 +32155,7 @@ tANI_U32 dot11fPackIeSuppChannels(tpAniSirGlobal pCtx,
                                   tANI_U32 nBuf,
                                   tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_bands * 2;
@@ -30342,7 +32164,7 @@ tANI_U32 dot11fPackIeSuppChannels(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 36;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->bands ), ( pSrc->num_bands * 2 ));
         *pnConsumed += ( pSrc->num_bands * 2 );
@@ -30350,9 +32172,9 @@ tANI_U32 dot11fPackIeSuppChannels(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeSuppChannels. */
@@ -30363,7 +32185,7 @@ tANI_U32 dot11fPackIeSuppOperatingClasses(tpAniSirGlobal pCtx,
                                           tANI_U32 nBuf,
                                           tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_classes;
@@ -30372,7 +32194,7 @@ tANI_U32 dot11fPackIeSuppOperatingClasses(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 59;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->classes ), pSrc->num_classes);
         *pnConsumed += pSrc->num_classes;
@@ -30380,9 +32202,9 @@ tANI_U32 dot11fPackIeSuppOperatingClasses(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeSuppOperatingClasses. */
@@ -30393,7 +32215,7 @@ tANI_U32 dot11fPackIeSuppRates(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_rates;
@@ -30402,7 +32224,7 @@ tANI_U32 dot11fPackIeSuppRates(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 1;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->rates ), pSrc->num_rates);
         *pnConsumed += pSrc->num_rates;
@@ -30410,9 +32232,9 @@ tANI_U32 dot11fPackIeSuppRates(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeSuppRates. */
@@ -30423,7 +32245,7 @@ tANI_U32 dot11fPackIeTIM(tpAniSirGlobal pCtx,
                          tANI_U32 nBuf,
                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  (pSrc->num_vbmp + 3);
@@ -30432,7 +32254,7 @@ tANI_U32 dot11fPackIeTIM(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 5;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->dtim_count;
         *pnConsumed += 1;
@@ -30449,9 +32271,9 @@ tANI_U32 dot11fPackIeTIM(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTIM. */
@@ -30462,7 +32284,7 @@ tANI_U32 dot11fPackIeTPCReport(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -30471,7 +32293,7 @@ tANI_U32 dot11fPackIeTPCReport(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 35;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->tx_power;
         *pnConsumed += 1;
@@ -30482,9 +32304,9 @@ tANI_U32 dot11fPackIeTPCReport(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTPCReport. */
@@ -30495,7 +32317,7 @@ tANI_U32 dot11fPackIeTPCRequest(tpAniSirGlobal pCtx,
                                 tANI_U32 nBuf,
                                 tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 0;
@@ -30504,14 +32326,14 @@ tANI_U32 dot11fPackIeTPCRequest(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 34;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTPCRequest. */
@@ -30522,7 +32344,7 @@ tANI_U32 dot11fPackIeTimeoutInterval(tpAniSirGlobal pCtx,
                                      tANI_U32 nBuf,
                                      tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 5;
@@ -30531,7 +32353,7 @@ tANI_U32 dot11fPackIeTimeoutInterval(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 56;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->timeoutType;
         *pnConsumed += 1;
@@ -30542,9 +32364,9 @@ tANI_U32 dot11fPackIeTimeoutInterval(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeTimeoutInterval. */
@@ -30555,7 +32377,7 @@ tANI_U32 dot11fPackIeVHTCaps(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U32 tmp142__;
@@ -30567,7 +32389,7 @@ tANI_U32 dot11fPackIeVHTCaps(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 191;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         tmp142__ = 0U;
         tmp142__ |= ( pSrc->maxMPDULen << 0 );
@@ -30617,9 +32439,9 @@ tANI_U32 dot11fPackIeVHTCaps(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeVHTCaps. */
@@ -30630,7 +32452,7 @@ tANI_U32 dot11fPackIeVHTExtBssLoad(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 5;
@@ -30639,7 +32461,7 @@ tANI_U32 dot11fPackIeVHTExtBssLoad(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 193;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->muMIMOCapStaCount;
         *pnConsumed += 1;
@@ -30659,9 +32481,9 @@ tANI_U32 dot11fPackIeVHTExtBssLoad(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeVHTExtBssLoad. */
@@ -30672,7 +32494,7 @@ tANI_U32 dot11fPackIeVHTOperation(tpAniSirGlobal pCtx,
                                   tANI_U32 nBuf,
                                   tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 5;
@@ -30681,7 +32503,7 @@ tANI_U32 dot11fPackIeVHTOperation(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 192;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->chanWidth;
         *pnConsumed += 1;
@@ -30698,9 +32520,9 @@ tANI_U32 dot11fPackIeVHTOperation(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeVHTOperation. */
@@ -30711,7 +32533,7 @@ tANI_U32 dot11fPackIeWAPI(tpAniSirGlobal pCtx,
                           tANI_U32 nBuf,
                           tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U16 tmp145__;
@@ -30723,7 +32545,7 @@ tANI_U32 dot11fPackIeWAPI(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 68;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         frameshtons(pCtx, pBuf, pSrc->version, 0);
         *pnConsumed += 2;
@@ -30762,9 +32584,9 @@ tANI_U32 dot11fPackIeWAPI(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeWAPI. */
@@ -30775,7 +32597,7 @@ tANI_U32 dot11fPackIeWAPIOpaque(tpAniSirGlobal pCtx,
                                 tANI_U32 nBuf,
                                 tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_data;
@@ -30784,7 +32606,7 @@ tANI_U32 dot11fPackIeWAPIOpaque(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 68;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         DOT11F_MEMCPY(pCtx, pBuf, &( pSrc->data ), pSrc->num_data);
         *pnConsumed += pSrc->num_data;
@@ -30792,9 +32614,9 @@ tANI_U32 dot11fPackIeWAPIOpaque(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWAPIOpaque. */
@@ -30805,7 +32627,7 @@ tANI_U32 dot11fPackIeWFATPC(tpAniSirGlobal pCtx,
                             tANI_U32 nBuf,
                             tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 2;
@@ -30814,7 +32636,7 @@ tANI_U32 dot11fPackIeWFATPC(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -30835,9 +32657,9 @@ tANI_U32 dot11fPackIeWFATPC(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWFATPC. */
@@ -30848,7 +32670,7 @@ tANI_U32 dot11fPackIeWFDIEOpaque(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_data;
@@ -30857,7 +32679,7 @@ tANI_U32 dot11fPackIeWFDIEOpaque(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x50;
         ++pBuf; ++(*pnConsumed);
@@ -30873,9 +32695,9 @@ tANI_U32 dot11fPackIeWFDIEOpaque(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWFDIEOpaque. */
@@ -30886,7 +32708,7 @@ tANI_U32 dot11fPackIeWMMCaps(tpAniSirGlobal pCtx,
                              tANI_U32 nBuf,
                              tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp146__;
@@ -30896,7 +32718,7 @@ tANI_U32 dot11fPackIeWMMCaps(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -30924,9 +32746,9 @@ tANI_U32 dot11fPackIeWMMCaps(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWMMCaps. */
@@ -30937,7 +32759,7 @@ tANI_U32 dot11fPackIeWMMInfoAp(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp147__;
@@ -30947,7 +32769,7 @@ tANI_U32 dot11fPackIeWMMInfoAp(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -30973,9 +32795,9 @@ tANI_U32 dot11fPackIeWMMInfoAp(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWMMInfoAp. */
@@ -30986,7 +32808,7 @@ tANI_U32 dot11fPackIeWMMInfoStation(tpAniSirGlobal pCtx,
                                     tANI_U32 nBuf,
                                     tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp148__;
@@ -30996,7 +32818,7 @@ tANI_U32 dot11fPackIeWMMInfoStation(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -31026,9 +32848,9 @@ tANI_U32 dot11fPackIeWMMInfoStation(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWMMInfoStation. */
@@ -31039,7 +32861,7 @@ tANI_U32 dot11fPackIeWMMParams(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp149__;
@@ -31056,7 +32878,7 @@ tANI_U32 dot11fPackIeWMMParams(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -31156,9 +32978,9 @@ tANI_U32 dot11fPackIeWMMParams(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWMMParams. */
@@ -31169,7 +32991,7 @@ tANI_U32 dot11fPackIeWPA(tpAniSirGlobal pCtx,
                          tANI_U32 nBuf,
                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -31180,7 +33002,7 @@ tANI_U32 dot11fPackIeWPA(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -31226,9 +33048,9 @@ tANI_U32 dot11fPackIeWPA(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIeWPA. */
@@ -31239,7 +33061,7 @@ tANI_U32 dot11fPackIeWPAOpaque(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_data;
@@ -31248,7 +33070,7 @@ tANI_U32 dot11fPackIeWPAOpaque(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -31264,9 +33086,9 @@ tANI_U32 dot11fPackIeWPAOpaque(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWPAOpaque. */
@@ -31277,7 +33099,7 @@ tANI_U32 dot11fPackIeWSC(tpAniSirGlobal pCtx,
                          tANI_U32 nBuf,
                          tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -31291,7 +33113,7 @@ tANI_U32 dot11fPackIeWSC(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -31306,7 +33128,7 @@ tANI_U32 dot11fPackIeWSC(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_WSC+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -31320,7 +33142,7 @@ tANI_U32 dot11fPackIeWiderBWChanSwitchAnn(tpAniSirGlobal pCtx,
                                           tANI_U32 nBuf,
                                           tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  += 3;
@@ -31329,7 +33151,7 @@ tANI_U32 dot11fPackIeWiderBWChanSwitchAnn(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 194;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = pSrc->newChanWidth;
         *pnConsumed += 1;
@@ -31343,9 +33165,9 @@ tANI_U32 dot11fPackIeWiderBWChanSwitchAnn(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWiderBWChanSwitchAnn. */
@@ -31356,7 +33178,7 @@ tANI_U32 dot11fPackIeWscAssocReq(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -31370,7 +33192,7 @@ tANI_U32 dot11fPackIeWscAssocReq(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -31385,7 +33207,7 @@ tANI_U32 dot11fPackIeWscAssocReq(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_WscAssocReq+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -31399,7 +33221,7 @@ tANI_U32 dot11fPackIeWscAssocRes(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -31413,7 +33235,7 @@ tANI_U32 dot11fPackIeWscAssocRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -31428,7 +33250,7 @@ tANI_U32 dot11fPackIeWscAssocRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_WscAssocRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -31442,7 +33264,7 @@ tANI_U32 dot11fPackIeWscBeacon(tpAniSirGlobal pCtx,
                                tANI_U32 nBuf,
                                tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -31456,7 +33278,7 @@ tANI_U32 dot11fPackIeWscBeacon(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -31471,7 +33293,7 @@ tANI_U32 dot11fPackIeWscBeacon(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_WscBeacon+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -31485,7 +33307,7 @@ tANI_U32 dot11fPackIeWscBeaconProbeRes(tpAniSirGlobal pCtx,
                                        tANI_U32 nBuf,
                                        tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -31499,7 +33321,7 @@ tANI_U32 dot11fPackIeWscBeaconProbeRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -31514,7 +33336,7 @@ tANI_U32 dot11fPackIeWscBeaconProbeRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_WscBeaconProbeRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -31528,7 +33350,7 @@ tANI_U32 dot11fPackIeWscIEOpaque(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     nNeeded  +=  pSrc->num_data;
@@ -31537,7 +33359,7 @@ tANI_U32 dot11fPackIeWscIEOpaque(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x0;
         ++pBuf; ++(*pnConsumed);
@@ -31553,9 +33375,9 @@ tANI_U32 dot11fPackIeWscIEOpaque(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return DOT11F_PARSE_SUCCESS;
 } /* End dot11fPackIeWscIEOpaque. */
@@ -31566,7 +33388,7 @@ tANI_U32 dot11fPackIeWscProbeReq(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -31580,7 +33402,7 @@ tANI_U32 dot11fPackIeWscProbeReq(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -31595,7 +33417,7 @@ tANI_U32 dot11fPackIeWscProbeReq(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_WscProbeReq+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -31609,7 +33431,7 @@ tANI_U32 dot11fPackIeWscProbeRes(tpAniSirGlobal pCtx,
                                  tANI_U32 nBuf,
                                  tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -31623,7 +33445,7 @@ tANI_U32 dot11fPackIeWscProbeRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -31638,7 +33460,7 @@ tANI_U32 dot11fPackIeWscProbeRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_WscProbeRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -31652,7 +33474,7 @@ tANI_U32 dot11fPackIeWscReassocRes(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 n, idx = 0,idxlast;
     tANI_U32 nConsumedSoFar, nConsumedNow;
     tANI_U32 status = DOT11F_PARSE_SUCCESS;
@@ -31666,7 +33488,7 @@ tANI_U32 dot11fPackIeWscReassocRes(tpAniSirGlobal pCtx,
         nConsumedSoFar=*pnConsumed;
             *pBuf = 221;
             ++pBuf; --nBuf; ++(*pnConsumed);
-            pIeLen = pBuf;
+            pTlvLen = pBuf;
             ++pBuf; --nBuf; ++(*pnConsumed);
             *pBuf = 0x0;
             ++pBuf; --nBuf; ++(*pnConsumed);
@@ -31681,7 +33503,7 @@ tANI_U32 dot11fPackIeWscReassocRes(tpAniSirGlobal pCtx,
             idxlast=idx;
             status = PackTlvCore(pCtx,(tANI_U8*)pSrc,pBuf,n,pnConsumed,TLVS_WscReassocRes+idx,&idx);
             nConsumedNow=*pnConsumed-nConsumedNow;
-            *pIeLen = *pnConsumed - nConsumedSoFar - 2;
+            *pTlvLen = *pnConsumed - nConsumedSoFar - 2;
             pBuf+=nConsumedNow;
             nBuf-=nConsumedNow;
         } while (DOT11F_BUFFER_OVERFLOW == status && idxlast != idx);
@@ -31695,7 +33517,7 @@ tANI_U32 dot11fPackIehs20vendor_ie(tpAniSirGlobal pCtx,
                                    tANI_U32 nBuf,
                                    tANI_U32 *pnConsumed)
 {
-    tANI_U8* pIeLen = 0;
+    tANI_U8* pTlvLen = 0;
     tANI_U32 nConsumedOnEntry = *pnConsumed;
     tANI_U32 nNeeded = 0U;
     tANI_U8 tmp157__;
@@ -31707,7 +33529,7 @@ tANI_U32 dot11fPackIehs20vendor_ie(tpAniSirGlobal pCtx,
         if ( nNeeded > nBuf ) return DOT11F_BUFFER_OVERFLOW;
         *pBuf = 221;
         ++pBuf; ++(*pnConsumed);
-        pIeLen = pBuf;
+        pTlvLen = pBuf;
         ++pBuf; ++(*pnConsumed);
         *pBuf = 0x50;
         ++pBuf; ++(*pnConsumed);
@@ -31745,9 +33567,9 @@ tANI_U32 dot11fPackIehs20vendor_ie(tpAniSirGlobal pCtx,
         break;
     }
     (void)pCtx;
-    if (pIeLen)
+    if (pTlvLen)
     {
-        *pIeLen = *pnConsumed - nConsumedOnEntry - 2;
+        *pTlvLen = *pnConsumed - nConsumedOnEntry - 2;
     }
     return status;
 } /* End dot11fPackIehs20vendor_ie. */

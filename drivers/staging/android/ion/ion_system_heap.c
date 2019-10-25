@@ -24,7 +24,7 @@
 #include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
-#include "ion.h"
+#include <linux/msm_ion.h>
 #include "ion_priv.h"
 #include <linux/dma-mapping.h>
 #include <trace/events/kmem.h>
@@ -119,6 +119,9 @@ static struct page_info *alloc_largest_available(struct ion_system_heap *heap,
 	struct page_info *info;
 	int i;
 	bool from_pool;
+ 
+	if (buffer->flags & ION_FLAG_POOL_FORCE_ALLOC)
+		goto force_alloc;
 
 	info = kmalloc(sizeof(struct page_info), GFP_KERNEL);
 	if (!info)
@@ -141,7 +144,7 @@ static struct page_info *alloc_largest_available(struct ion_system_heap *heap,
 		return info;
 	}
 	kfree(info);
-
+force_alloc:
 	return NULL;
 }
 static unsigned int process_info(struct page_info *info,

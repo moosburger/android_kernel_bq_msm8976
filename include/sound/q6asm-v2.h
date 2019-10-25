@@ -174,6 +174,8 @@ struct audio_client {
 	/* Relative or absolute TS */
 	atomic_t	       time_flag;
 	atomic_t	       nowait_cmd_cnt;
+	struct list_head       no_wait_que;
+	spinlock_t             no_wait_que_spinlock;
 	atomic_t               mem_state;
 	void		       *priv;
 	uint32_t               io_mode;
@@ -191,6 +193,7 @@ struct audio_client {
 	int					   stream_id;
 	struct device *dev;
 	int		       topology;
+	int		       app_type;
 	/* audio cache operations fptr*/
 	int (*fptr_cache_ops)(struct audio_buffer *abuff, int cache_op);
 	atomic_t               unmap_cb_success;
@@ -477,7 +480,8 @@ int q6asm_stream_send_meta_data(struct audio_client *ac, uint32_t stream_id,
 		uint32_t initial_samples, uint32_t trailing_samples);
 
 /* Get current ASM topology */
-int q6asm_get_asm_topology(void);
+int q6asm_get_asm_topology(int session_id);
+int q6asm_get_asm_topology_cal(void);
 
 int q6asm_send_mtmx_strtr_window(struct audio_client *ac,
 		struct asm_session_mtmx_strtr_param_window_v2_t *window_param,

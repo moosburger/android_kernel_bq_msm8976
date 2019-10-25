@@ -72,11 +72,15 @@ limProcessDeauthFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession p
     tANI_U32          frameLen;
 #endif
 
-
     pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
 
     pBody = WDA_GET_RX_MPDU_DATA(pRxPacketInfo);
-
+	frameLen = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
+	if (frameLen < sizeof(reasonCode)) {
+        PELOGE(limLog(pMac, LOGE,
+		FL("Deauth Frame length invalid %d"), frameLen);)
+		return ;
+	}
 
     if ((eLIM_STA_ROLE == psessionEntry->limSystemRole) && (eLIM_SME_WT_DEAUTH_STATE == psessionEntry->limSmeState))
     {
@@ -122,7 +126,6 @@ limProcessDeauthFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession p
         PELOGE(limLog(pMac, LOGE, FL("received an unprotected deauth from AP"));)
         // If the frame received is unprotected, forward it to the supplicant to initiate
         // an SA query
-        frameLen = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
 
         //send the unprotected frame indication to SME
         limSendSmeUnprotectedMgmtFrameInd( pMac, pHdr->fc.subType,

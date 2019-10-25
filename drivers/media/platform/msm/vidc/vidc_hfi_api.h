@@ -64,7 +64,9 @@
 #define HAL_MAX_LIMIT_COEFFS 6
 
 /* 32 encoder and 32 decoder sessions */
-#define VIDC_MAX_SESSIONS               64
+#define VIDC_MAX_SESSIONS                       64
+#define VIDC_MAX_DECODE_SESSIONS        32
+#define VIDC_MAX_ENCODE_SESSIONS        32
 
 enum vidc_status {
 	VIDC_ERR_NONE = 0x0,

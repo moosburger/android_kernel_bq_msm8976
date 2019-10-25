@@ -1,8 +1,8 @@
 VERSION = 3
 PATCHLEVEL = 10
 SUBLEVEL = 108
-EXTRAVERSION =.2
-NAME = END-OF-LIFE
+EXTRAVERSION =.3
+NAME = BEYOND-END-OF-LIFE
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
