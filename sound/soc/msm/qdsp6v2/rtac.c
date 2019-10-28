@@ -396,7 +396,7 @@ void add_popp(u32 dev_idx, u32 port_id, u32 popp_id)
 		rtac_adm_data.device[dev_idx].num_of_popp].popp = popp_id;
 	rtac_adm_data.device[dev_idx].popp[
 		rtac_adm_data.device[dev_idx].num_of_popp++].popp_topology =
-		q6asm_get_asm_topology_cal();
+		q6asm_get_asm_topology();
 done:
 	return;
 }
@@ -443,7 +443,7 @@ void rtac_add_adm_device(u32 port_id, u32 copp_id, u32 path_id, u32 popp_id,
 		rtac_adm_data.device[i].num_of_popp].popp = popp_id;
 	rtac_adm_data.device[i].popp[
 		rtac_adm_data.device[i].num_of_popp++].popp_topology =
-		q6asm_get_asm_topology_cal();
+		q6asm_get_asm_topology();
 done:
 	mutex_unlock(&rtac_adm_mutex);
 	return;
