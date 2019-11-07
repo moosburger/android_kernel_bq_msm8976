@@ -483,6 +483,10 @@ CONFIG_ANDROID_INTF_ALARM_DEV=y
 CONFIG_ONESHOT_SYNC=y
 CONFIG_ION=y
 CONFIG_ION_MSM=y
+
+##
+# Qualcomm Atheros Prima WLAN module
+##
 # CONFIG_PRIMA_WLAN is not set
 CONFIG_PRONTO_WLAN=y
 # CONFIG_PRIMA_WLAN_BTAMP is not set
@@ -494,6 +498,7 @@ CONFIG_QCOM_TDLS=y
 CONFIG_QCOM_VOWIFI_11R=y
 CONFIG_ENABLE_LINUX_REG=y
 CONFIG_WLAN_OFFLOAD_PACKETS=y
+
 CONFIG_SPS=y
 CONFIG_USB_BAM=y
 CONFIG_SPS_SUPPORT_NDP_BAM=y
@@ -545,7 +550,16 @@ CONFIG_MSM_SCM=y
 CONFIG_MSM_XPU_ERR_FATAL=y
 CONFIG_QCOM_EARLY_RANDOM=y
 CONFIG_MEM_SHARE_QMI_SERVICE=y
+
+#
+# Firmware Drivers
+#
+# might be required by internal libraries on stock rom
 CONFIG_MSM_TZ_LOG=y
+
+#
+# File systems
+#
 CONFIG_EXT2_FS=y
 CONFIG_EXT2_FS_XATTR=y
 CONFIG_EXT3_FS=y
@@ -553,11 +567,23 @@ CONFIG_EXT3_FS=y
 CONFIG_EXT4_FS=y
 CONFIG_EXT4_FS_SECURITY=y
 CONFIG_FUSE_FS=y
+
+#
+# DOS/FAT/NT Filesystems
+#
 CONFIG_VFAT_FS=y
+
+#
+# Pseudo filesystems
+#
 CONFIG_TMPFS=y
 CONFIG_NLS_CODEPAGE_437=y
 CONFIG_NLS_ASCII=y
 CONFIG_NLS_ISO8859_1=y
+
+#
+# Kernel hacking
+#
 CONFIG_PRINTK_TIME=y
 CONFIG_MAGIC_SYSRQ=y
 # CONFIG_SCHED_DEBUG is not set
@@ -613,3 +639,14 @@ CONFIG_CRYPTO_SHA1_ARM=y
 CONFIG_HALL=y
 # CONFIG_SND_SOC_TPA6130A2=y
 CONFIG_SND_SOC_TFA98XX=y
+
+########################################################################
+# special features
+########################################################################
+
+
+# other Features
+##
+
+# MDSS color control
+CONFIG_FB_MSM_MDSS_KCAL_CTRL=y
