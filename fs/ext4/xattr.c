@@ -1362,8 +1362,12 @@ retry:
 		/* Find the entry best suited to be pushed into EA block */
 		entry = NULL;
 		for (; !IS_LAST_ENTRY(last); last = EXT4_XATTR_NEXT(last)) {
-			total_size =
-			EXT4_XATTR_SIZE(le32_to_cpu(last->e_value_size)) +
+			/* never move system.data out of the inode */
+			if ((last->e_name_len == 4) &&
+			    (last->e_name_index == EXT4_XATTR_INDEX_SYSTEM) &&
+			    !memcmp(last->e_name, "data", 4))
+				continue;
+			total_size = EXT4_XATTR_SIZE(le32_to_cpu(last->e_value_size)) +
 					EXT4_XATTR_LEN(last->e_name_len);
 			if (total_size <= free && total_size < min_total_size) {
 				if (total_size < new_extra_isize) {

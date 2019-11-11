@@ -40,6 +40,7 @@
 #include <linux/falloc.h>
 #include <asm/uaccess.h>
 #include <linux/fiemap.h>
+#include "ext4.h"
 #include "ext4_jbd2.h"
 #include "ext4_extents.h"
 #include "xattr.h"
@@ -750,6 +751,13 @@ ext4_ext_find_extent(struct inode *inode, ext4_lblk_t block,
 
 	eh = ext_inode_hdr(inode);
 	depth = ext_depth(inode);
+    
+	if (depth < 0 || depth > EXT4_MAX_EXTENT_DEPTH) {
+		EXT4_ERROR_INODE(inode, "inode has invalid extent depth: %d",
+				 depth);
+		ret = -EFSCORRUPTED;
+		goto err;
+	}    
 
 	/* account possible depth increase */
 	if (!path) {
