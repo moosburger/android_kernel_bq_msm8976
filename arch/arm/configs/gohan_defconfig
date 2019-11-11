@@ -650,3 +650,6 @@ CONFIG_SND_SOC_TFA98XX=y
 
 # MDSS color control
 CONFIG_FB_MSM_MDSS_KCAL_CTRL=y
+
+# DeviceId Solution (SerialBug)
+CONFIG_UUID=y
