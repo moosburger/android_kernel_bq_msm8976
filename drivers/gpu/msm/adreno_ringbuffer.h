@@ -128,7 +128,19 @@ struct adreno_ringbuffer {
 	unsigned int gpr11;
 	int preempted_midway;
 	unsigned long sched_timer;
-	enum adreno_dispatcher_starve_timer_states starve_timer_state;
+	enum adreno_dispatcher_starve_timer_states starve_timer_state;   
+	/**
+	 * @profile_desc: global memory to construct IB1s to do user side
+	 * profiling
+	 */
+	struct kgsl_memdesc profile_desc;
+	/**
+	 * @profile_index: Pointer to the next "slot" in profile_desc for a user
+	 * profiling IB1.  This allows for PAGE_SIZE / 16 = 256 simultaneous
+	 * commands per ringbuffer with user profiling enabled
+	 * enough.
+	 */
+	u32 profile_index;
 };
 
 /* enable timestamp (...scratch0) memory shadowing */

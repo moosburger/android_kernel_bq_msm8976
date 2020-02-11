@@ -405,9 +405,13 @@ static int _adreno_ringbuffer_init(struct adreno_device *adreno_dev,
 	if (ret)
 		return ret;
 
+	/* allocate a chunk of memory to create user profiling IB1s */
+	kgsl_allocate_global(&adreno_dev->dev, &rb->profile_desc,
+		PAGE_SIZE, KGSL_MEMFLAGS_GPUREADONLY, 0);  
+
 	ret = kgsl_allocate_global(&adreno_dev->dev, &rb->buffer_desc,
 			KGSL_RB_SIZE, KGSL_MEMFLAGS_GPUREADONLY, 0);
-	return ret;
+	return ret;  
 }
 
 int adreno_ringbuffer_init(struct kgsl_device *device)
@@ -440,6 +444,7 @@ static void _adreno_ringbuffer_close(struct adreno_ringbuffer *rb)
 {
 	kgsl_free_global(&rb->pagetable_desc);
 	kgsl_free_global(&rb->preemption_desc);
+	kgsl_free_global(&rb->profile_desc);
 
 	memset(&rb->pt_update_desc, 0, sizeof(struct kgsl_memdesc));
 
@@ -864,6 +869,37 @@ static inline int _get_alwayson_counter(struct adreno_device *adreno_dev,
 
 	return (unsigned int)(p - cmds);
 }
+ 
+/* This is the maximum possible size for 64 bit targets */
+#define PROFILE_IB_DWORDS 4
+#define PROFILE_IB_SLOTS (PAGE_SIZE / (PROFILE_IB_DWORDS << 2))
+
+static int set_user_profiling(struct adreno_device *adreno_dev,
+		struct adreno_ringbuffer *rb, u32 *cmds, u64 gpuaddr)
+{
+	int dwords, index = 0;
+	u64 ib_gpuaddr;
+	u32 *ib;
+
+	if (!rb->profile_desc.hostptr)
+		return 0;
+
+	ib = ((u32 *) rb->profile_desc.hostptr) +
+		(rb->profile_index * PROFILE_IB_DWORDS);
+	ib_gpuaddr = rb->profile_desc.gpuaddr +
+		(rb->profile_index * (PROFILE_IB_DWORDS << 2));
+
+	dwords = _get_alwayson_counter(adreno_dev, ib, gpuaddr);
+
+	/* Make an indirect buffer for the request */
+	cmds[index++] = cp_mem_packet(adreno_dev, CP_INDIRECT_BUFFER_PFE, 2, 1);
+	index += cp_gpuaddr(adreno_dev, &cmds[index], ib_gpuaddr);
+	cmds[index++] = dwords;
+
+	rb->profile_index = (rb->profile_index + 1) % PROFILE_IB_SLOTS;
+
+	return index;
+}
 
 /* adreno_rindbuffer_submitcmd - submit userspace IBs to the GPU */
 int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
@@ -963,14 +999,12 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 	if (cmdbatch->flags & KGSL_CMDBATCH_PROFILING &&
 		!adreno_is_a3xx(adreno_dev) && profile_buffer) {
 		cmdbatch_user_profiling = true;
-		dwords += 6;
-
-		/*
-		 * REG_TO_MEM packet on A5xx needs another ordinal.
-		 * Add 2 more dwords since we do profiling before and after.
-		 */
-		if (adreno_is_a5xx(adreno_dev))
-			dwords += 2;
+ 
+		/* 
+		 * User side profiling uses two IB1s, one before with 4 dwords
+		 * per INDIRECT_BUFFER_PFE call
+		 */      
+		dwords += 8;
 
 		/*
 		 * we want to use an adreno_submit_time struct to get the
@@ -1007,13 +1041,13 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 			ADRENO_CMDBATCH_PROFILE_OFFSET(cmdbatch->profile_index,
 				started));
 	}
-
-	/*
-	 * Add cmds to read the GPU ticks at the start of the cmdbatch and
-	 * write it into the appropriate cmdbatch profiling buffer offset
-	 */
-	if (cmdbatch_user_profiling) {
-		cmds += _get_alwayson_counter(adreno_dev, cmds,
+ 
+ 	/*
+	 * Add IB1 to read the GPU ticks at the start of command obj and
+ 	 * write it into the appropriate command obj profiling buffer offset
+ 	 */
+ 	if (cmdbatch_user_profiling) {
+		cmds += set_user_profiling(adreno_dev, rb, cmds,
 			cmdbatch->profiling_buffer_gpuaddr +
 			offsetof(struct kgsl_cmdbatch_profiling_buffer,
 			gpu_ticks_submitted));
@@ -1065,11 +1099,11 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 	}
 
 	/*
-	 * Add cmds to read the GPU ticks at the end of the cmdbatch and
+	 * Add IB1 to read the GPU ticks at the end of command obj and
 	 * write it into the appropriate cmdbatch profiling buffer offset
 	 */
 	if (cmdbatch_user_profiling) {
-		cmds += _get_alwayson_counter(adreno_dev, cmds,
+		cmds += set_user_profiling(adreno_dev, rb, cmds,
 			cmdbatch->profiling_buffer_gpuaddr +
 			offsetof(struct kgsl_cmdbatch_profiling_buffer,
 			gpu_ticks_retired));
