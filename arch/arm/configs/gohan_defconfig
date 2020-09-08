@@ -574,6 +574,11 @@ CONFIG_FUSE_FS=y
 CONFIG_VFAT_FS=y
 
 #
+# extFat
+#
+CONFIG_EXFAT_FS=y
+
+#
 # Pseudo filesystems
 #
 CONFIG_TMPFS=y
