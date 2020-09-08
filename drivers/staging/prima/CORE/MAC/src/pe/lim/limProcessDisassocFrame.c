@@ -81,8 +81,14 @@ limProcessDisassocFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession
 
     pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
     pBody = WDA_GET_RX_MPDU_DATA(pRxPacketInfo);
-	frame_len = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
-    
+    frame_len = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
+
+    if (frame_len < 2) {
+        limLog(pMac, LOGE, FL("frame len less than 2"));
+        return;
+    }
+
+
     if (limIsGroupAddr(pHdr->sa))
     {
         // Received Disassoc frame from a BC/MC address
@@ -117,7 +123,7 @@ limProcessDisassocFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession
         return;
     }
 #endif
- 
+
 	if (frame_len < 2) {
         limLog(pMac, LOGE,
         FL("frame len less than 2"));
@@ -213,8 +219,8 @@ limProcessDisassocFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession
         }
     }
     else if (  ((psessionEntry->limSystemRole == eLIM_STA_ROLE) ||
-                (psessionEntry->limSystemRole == eLIM_BT_AMP_STA_ROLE)) &&  
-               ((psessionEntry->limSmeState != eLIM_SME_WT_JOIN_STATE) && 
+                (psessionEntry->limSystemRole == eLIM_BT_AMP_STA_ROLE)) &&
+               ((psessionEntry->limSmeState != eLIM_SME_WT_JOIN_STATE) &&
                 (psessionEntry->limSmeState != eLIM_SME_WT_AUTH_STATE)  &&
                 (psessionEntry->limSmeState != eLIM_SME_WT_ASSOC_STATE)  &&
                 (psessionEntry->limSmeState != eLIM_SME_WT_REASSOC_STATE) ))
@@ -286,7 +292,7 @@ limProcessDisassocFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession
                pStaDs->isDisassocDeauthInProgress);)
 
         return;
-    } 
+    }
 
     if (pStaDs->mlmStaContext.mlmState != eLIM_MLM_LINK_ESTABLISHED_STATE)
     {
@@ -320,17 +326,17 @@ limProcessDisassocFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession
 
     if (limIsReassocInProgress(pMac,psessionEntry)) {
 
-    /* If we're in the middle of ReAssoc and received disassoc from 
-     * the ReAssoc AP, then notify SME by sending REASSOC_RSP with 
-     * failure result code. By design, SME will then issue "Disassoc"  
-     * and cleanup will happen at that time. 
+    /* If we're in the middle of ReAssoc and received disassoc from
+     * the ReAssoc AP, then notify SME by sending REASSOC_RSP with
+     * failure result code. By design, SME will then issue "Disassoc"
+     * and cleanup will happen at that time.
      */
         PELOGE(limLog(pMac, LOGE, FL("received Disassoc from AP while waiting "
                                   "for Reassoc Rsp"));)
-     
+
         if (psessionEntry->limAssocResponseData) {
             vos_mem_free(psessionEntry->limAssocResponseData);
-            psessionEntry->limAssocResponseData = NULL;                            
+            psessionEntry->limAssocResponseData = NULL;
         }
 
         limRestorePreReassocState(pMac,eSIR_SME_REASSOC_REFUSED, reasonCode,psessionEntry);
@@ -341,7 +347,7 @@ limProcessDisassocFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession
                       (tANI_U32 *) &mlmDisassocInd);
 
 
-    // send eWNI_SME_DISASSOC_IND to SME  
+    // send eWNI_SME_DISASSOC_IND to SME
     limSendSmeDisassocInd(pMac, pStaDs,psessionEntry);
 
     return;
