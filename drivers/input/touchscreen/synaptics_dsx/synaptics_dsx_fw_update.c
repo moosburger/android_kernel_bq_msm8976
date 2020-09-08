@@ -2241,10 +2241,12 @@ static int fwu_get_image_firmware_id(unsigned int *fw_id)
 					__func__);
 			return -ENOMEM;
 		}
-		while (strptr[index] >= '0' && strptr[index] <= '9') {
+		while ((index < MAX_FIRMWARE_ID_LEN - 1) && strptr[index] >= '0'
+			&& strptr[index] <= '9') {
 			firmware_id[index] = strptr[index];
 			index++;
 		}
+		firmware_id[index] = '\0';
 
 		retval = sstrtoul(firmware_id, 10, (unsigned long *)fw_id);
 		kfree(firmware_id);
@@ -3577,7 +3579,7 @@ static int fwu_start_reflash(void)
 			retval = -EINVAL;
 			goto exit;
 		}
-		
+
 		lct_ctp_upgrade_int(lct_ctp_upgrade_func, lct_get_tp_info);
 
 		if (retval < 0) {
@@ -4281,7 +4283,7 @@ static ssize_t fwu_sysfs_read_config_store(struct device *dev,
 
 	if (!mutex_trylock(&dsx_fwu_sysfs_mutex))
 		return -EBUSY;
-	
+
         if (fwu->in_ub_mode) {
 		dev_err(rmi4_data->pdev->dev.parent,
 				"%s: In microbootloader mode\n",
@@ -4328,7 +4330,7 @@ static ssize_t fwu_sysfs_image_name_store(struct device *dev,
 
         if (!mutex_trylock(&dsx_fwu_sysfs_mutex))
                 return -EBUSY;
-	
+
         retval = secure_memcpy(fwu->image_name, MAX_IMAGE_NAME_LEN,
 			buf, count, count);
 
