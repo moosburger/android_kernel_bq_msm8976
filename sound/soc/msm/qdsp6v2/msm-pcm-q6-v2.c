@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, 2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -671,9 +671,10 @@ static int msm_pcm_playback_close(struct snd_pcm_substream *substream)
 	uint32_t timeout;
 	int dir = 0;
 	int ret = 0;
+	struct msm_plat_data *pdata;
 
 	pr_debug("%s: cmd_pending 0x%lx\n", __func__, prtd->cmd_pending);
- 
+
 	pdata = (struct msm_plat_data *)
 		dev_get_drvdata(soc_prtd->platform->dev);
 	if (!pdata) {
@@ -713,8 +714,8 @@ static int msm_pcm_playback_close(struct snd_pcm_substream *substream)
 						SNDRV_PCM_STREAM_PLAYBACK);
 	kfree(prtd);
 	runtime->private_data = NULL;
-	mutex_unlock(&pdata->lock);
 
+	mutex_unlock(&pdata->lock);
 	return 0;
 }
 
@@ -829,8 +830,8 @@ static int msm_pcm_capture_close(struct snd_pcm_substream *substream)
 		SNDRV_PCM_STREAM_CAPTURE);
 	kfree(prtd);
 	runtime->private_data = NULL;
-	mutex_unlock(&pdata->lock);
 
+	mutex_unlock(&pdata->lock);
 	return 0;
 }
 
@@ -849,11 +850,11 @@ static int msm_pcm_copy(struct snd_pcm_substream *substream, int a,
 static int msm_pcm_close(struct snd_pcm_substream *substream)
 {
 	int ret = 0;
-    
+
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		ret = msm_pcm_playback_close(substream);
 	else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
-		ret = msm_pcm_capture_close(substream);    
+		ret = msm_pcm_capture_close(substream);
 	return ret;
 }
 
@@ -1076,9 +1077,9 @@ static int msm_pcm_chmap_ctl_put(struct snd_kcontrol *kcontrol,
 	struct snd_pcm_chmap *info = snd_kcontrol_chip(kcontrol);
 	unsigned int idx = snd_ctl_get_ioffidx(kcontrol, &ucontrol->id);
 	struct snd_pcm_substream *substream;
+	struct msm_audio *prtd;
 	struct snd_soc_pcm_runtime *rtd = NULL;
 	struct msm_plat_data *pdata = NULL;
-	struct msm_audio *prtd;
 
 	pr_debug("%s", __func__);
 	substream = snd_pcm_chmap_substream(info, idx);
