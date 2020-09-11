@@ -92,6 +92,7 @@ static int32_t msm_buf_mngr_get_buf(struct msm_buf_mngr_device *dev,
 	return rc;
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static int32_t msm_buf_mngr_get_buf_by_idx(struct msm_buf_mngr_device *dev,
 	void *argp)
 {
@@ -482,7 +483,7 @@ int msm_cam_buf_mgr_ops(unsigned int cmd, void *argp)
 
 		switch (k_ioctl->id) {
 		case MSM_CAMERA_BUF_MNGR_IOCTL_ID_GET_BUF_BY_IDX: {
-			struct msm_buf_mngr_info *tmp = NULL;
+			struct msm_buf_mngr_info /*buf_info, */ *tmp = NULL;
 
 			if (!k_ioctl->ioctl_ptr)
 				return -EINVAL;
@@ -493,6 +494,20 @@ int msm_cam_buf_mgr_ops(unsigned int cmd, void *argp)
 				sizeof(tmp));
 			rc = msm_buf_mngr_get_buf_by_idx(msm_buf_mngr_dev,
 				tmp);
+
+/*			if (!is_compat_task()) {
+				MSM_CAM_GET_IOCTL_ARG_PTR(&tmp,
+					&k_ioctl->ioctl_ptr, sizeof(tmp));
+				if (copy_from_user(&buf_info,
+					(void __user *)tmp,
+					sizeof(struct msm_buf_mngr_info))) {
+					return -EFAULT;
+				}
+				k_ioctl->ioctl_ptr = (uintptr_t)&buf_info;
+			}
+
+			argp = &k_ioctl;
+			rc = msm_cam_buf_mgr_ops(cmd, argp);*/
 			}
 			break;
 		default:

@@ -1953,7 +1953,7 @@ int hdd_setP2pNoa( struct net_device *dev, tANI_U8 *command )
                 "%s: P2P_PS_ATTR:oppPS %d ctWindow %d duration %d "
                 "interval %d count %d single noa duration %d "
                 "PsSelection %x", __func__, NoA.opp_ps,
-                NoA.ctWindow, NoA.duration, NoA.interval, 
+                NoA.ctWindow, NoA.duration, NoA.interval,
                 NoA.count, NoA.single_noa_duration,
                 NoA.psSelection);
 
@@ -2051,7 +2051,7 @@ int hdd_setP2pOpps( struct net_device *dev, tANI_U8 *command )
                             "%s: P2P_PS_ATTR:oppPS %d ctWindow %d duration %d "
                             "interval %d count %d single noa duration %d "
                             "PsSelection %x", __func__, NoA.opp_ps,
-                            NoA.ctWindow, NoA.duration, NoA.interval, 
+                            NoA.ctWindow, NoA.duration, NoA.interval,
                             NoA.count, NoA.single_noa_duration,
                             NoA.psSelection);
 
@@ -2080,7 +2080,7 @@ int hdd_setP2pOpps( struct net_device *dev, tANI_U8 *command )
                         "%s: P2P_PS_ATTR:oppPS %d ctWindow %d duration %d "
                         "interval %d count %d single noa duration %d "
                         "PsSelection %x", __func__, NoA.opp_ps,
-                        NoA.ctWindow, NoA.duration, NoA.interval, 
+                        NoA.ctWindow, NoA.duration, NoA.interval,
                         NoA.count, NoA.single_noa_duration,
                         NoA.psSelection);
 
@@ -2307,6 +2307,8 @@ int __wlan_hdd_del_virtual_intf( struct wiphy *wiphy, struct net_device *dev )
     struct net_device *dev = wdev->netdev;
 #endif
     hdd_context_t *pHddCtx = (hdd_context_t*) wiphy_priv(wiphy);
+
+#pragma GCC diagnostic ignored "-Wunused-variable"
     hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR( dev );
     hdd_adapter_t *pVirtAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
     int status;

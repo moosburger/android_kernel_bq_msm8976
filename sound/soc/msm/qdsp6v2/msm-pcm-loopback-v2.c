@@ -360,8 +360,8 @@ static int msm_pcm_volume_ctl_put(struct snd_kcontrol *kcontrol,
 	struct snd_pcm_volume *vol = kcontrol->private_data;
 	struct snd_pcm_substream *substream = vol->pcm->streams[0].substream;
 	struct msm_pcm_loopback *prtd;
-	struct msm_pcm_loopback *pcm;
-	struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(substream);
+	//struct msm_pcm_loopback *pcm;
+	//struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(substream);
 	int volume = ucontrol->value.integer.value[0];
 
 	pr_debug("%s: volume : 0x%x\n", __func__, volume);
@@ -392,8 +392,8 @@ static int msm_pcm_volume_ctl_get(struct snd_kcontrol *kcontrol,
 	struct snd_pcm_volume *vol = snd_kcontrol_chip(kcontrol);
 	struct snd_pcm_substream *substream =
 		vol->pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream;
-	struct msm_pcm_loopback *pcm ;
-	struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(substream);
+	//struct msm_pcm_loopback *pcm ;
+	//struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(substream);
 	struct msm_pcm_loopback *prtd;
 
 	pr_debug("%s\n", __func__);

@@ -1470,6 +1470,7 @@ eHalStatus sme_Open(tHalHandle hHal)
 eHalStatus sme_set11dinfo(tHalHandle hHal,  tpSmeConfigParams pSmeConfigParams)
 {
    eHalStatus status = eHAL_STATUS_FAILURE;
+#pragma GCC diagnostic ignored "-Wunused-variable"
    tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
 
    MTRACE(vos_trace(VOS_MODULE_ID_SME,

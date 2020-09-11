@@ -247,7 +247,7 @@ static void framesDump(tpAniSirGlobal pCtx, int nSev, tANI_U8 *pBuf, int nBuf)
 #   define FRAMES_LOG1(ctx, sev, fmt, p1)
 #   define FRAMES_LOG2(ctx, sev, fmt, p1, p2)
 #   define FRAMES_LOG3(ctx, sev, fmt, p1, p2, p3)
-#   define FRAMES_LOG4(ctx, sev, fmt, p1, p2, p3, p4) 
+#   define FRAMES_LOG4(ctx, sev, fmt, p1, p2, p3, p4)
 #   define FRAMES_DUMP(ctx, sev, p, n)
 #   ifndef FRAMES_SEV_FOR_FRAME
 #       define FRAMES_SEV_FOR_FRAME(ctx, sig) FRLOG3
@@ -1303,15 +1303,15 @@ tANI_U32 dot11fUnpackTlvNoticeOfAbsence(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     pDst->index = *pBuf;
     pBuf += 1;
-    tlvlen -= (tANI_U8)1; 
+    tlvlen -= (tANI_U8)1;
 	if (unlikely(tlvlen < 1)) {
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     pDst->CTSWindowOppPS = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
@@ -1339,7 +1339,7 @@ tANI_U32 dot11fUnpackTlvOperatingChannel(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tAN
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     DOT11F_MEMCPY(pCtx, pDst->countryString, pBuf, 3);
     pBuf += 3;
     tlvlen -= (tANI_U8)3;
@@ -1347,7 +1347,7 @@ tANI_U32 dot11fUnpackTlvOperatingChannel(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tAN
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     pDst->regulatoryClass = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
@@ -1355,7 +1355,7 @@ tANI_U32 dot11fUnpackTlvOperatingChannel(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tAN
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     pDst->channel = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
@@ -1374,7 +1374,7 @@ tANI_U32 dot11fUnpackTlvP2PCapability(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     pDst->deviceCapability = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
@@ -1382,7 +1382,7 @@ tANI_U32 dot11fUnpackTlvP2PCapability(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     pDst->groupCapability = *pBuf;
     pBuf += 1;
     tlvlen -= (tANI_U8)1;
@@ -1401,7 +1401,7 @@ tANI_U32 dot11fUnpackTlvP2PDeviceId(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U16
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     DOT11F_MEMCPY(pCtx, pDst->P2PDeviceAddress, pBuf, 6);
     pBuf += 6;
     tlvlen -= (tANI_U8)6;
@@ -1425,7 +1425,7 @@ tANI_U32 dot11fUnpackTlvP2PDeviceInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     DOT11F_MEMCPY(pCtx, pDst->P2PDeviceAddress, pBuf, 6);
     pBuf += 6;
     tlvlen -= (tANI_U8)6;
@@ -1433,7 +1433,7 @@ tANI_U32 dot11fUnpackTlvP2PDeviceInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     framesntohs(pCtx, &pDst->configMethod, pBuf, 0);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
@@ -1441,7 +1441,7 @@ tANI_U32 dot11fUnpackTlvP2PDeviceInfo(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     DOT11F_MEMCPY(pCtx, pDst->primaryDeviceType, pBuf, 8);
     pBuf += 8;
     tlvlen -= (tANI_U8)8;
@@ -1522,7 +1522,7 @@ tANI_U32 dot11fUnpackTlvPrimaryDeviceType(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     framesntohs(pCtx, &pDst->primary_category, pBuf, 1);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
@@ -1530,7 +1530,7 @@ tANI_U32 dot11fUnpackTlvPrimaryDeviceType(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     DOT11F_MEMCPY(pCtx, pDst->oui, pBuf, 4);
     pBuf += 4;
     tlvlen -= (tANI_U8)4;
@@ -1538,7 +1538,7 @@ tANI_U32 dot11fUnpackTlvPrimaryDeviceType(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     framesntohs(pCtx, &pDst->sub_category, pBuf, 1);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
@@ -1560,7 +1560,7 @@ tANI_U32 dot11fUnpackTlvRequestDeviceType(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     framesntohs(pCtx, &pDst->primary_category, pBuf, 1);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
@@ -1568,7 +1568,7 @@ tANI_U32 dot11fUnpackTlvRequestDeviceType(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     DOT11F_MEMCPY(pCtx, pDst->oui, pBuf, 4);
     pBuf += 4;
     tlvlen -= (tANI_U8)4;
@@ -1576,7 +1576,7 @@ tANI_U32 dot11fUnpackTlvRequestDeviceType(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tA
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     framesntohs(pCtx, &pDst->sub_category, pBuf, 1);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
@@ -1627,7 +1627,7 @@ tANI_U32 dot11fUnpackTlvUUID_E(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U16 tlvl
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     DOT11F_MEMCPY(pCtx, pDst->uuid, pBuf, 16);
     pBuf += 16;
     tlvlen -= (tANI_U8)16;
@@ -1646,7 +1646,7 @@ tANI_U32 dot11fUnpackTlvUUID_R(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U16 tlvl
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     DOT11F_MEMCPY(pCtx, pDst->uuid, pBuf, 16);
     pBuf += 16;
     tlvlen -= (tANI_U8)16;
@@ -1672,7 +1672,7 @@ tANI_U32 dot11fUnpackTlvVendorExtension(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     DOT11F_MEMCPY(pCtx, pDst->vendorId, pBuf, 3);
     pBuf += 3;
     tlvlen -= (tANI_U8)3;
@@ -1698,7 +1698,7 @@ tANI_U32 dot11fUnpackTlvVersion(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U16 tlv
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-    
+
     tmp8__ = *pBuf;
     pBuf += 1;
     tlvlen -= 1;
@@ -1863,7 +1863,7 @@ tANI_U32 dot11fUnpackIeIGTK(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, 
 
     DOT11F_MEMCPY(pCtx, pDst->IPN, pBuf, 6);
     pBuf += 6;
-    tlvlen -= (tANI_U8)6;	
+    tlvlen -= (tANI_U8)6;
 	if (unlikely(tlvlen < 1)) {
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
@@ -6610,7 +6610,7 @@ tANI_U32 dot11fUnpackIeWAPI(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, 
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-	
+
     framesntohs(pCtx, &pDst->akm_suite_count, pBuf, 0);
     pBuf += 2;
     tlvlen -= (tANI_U8)2;
@@ -6618,7 +6618,7 @@ tANI_U32 dot11fUnpackIeWAPI(tpAniSirGlobal pCtx, tANI_U8 *pBuf, tANI_U8 tlvlen, 
 		pDst->present = 0;
  		return DOT11F_INCOMPLETE_IE;
 	}
-	
+
     if (pDst->akm_suite_count > 4){
         pDst->present = 0;
         return DOT11F_SKIPPED_BAD_IE;
@@ -22226,15 +22226,12 @@ static tANI_U32 UnpackCore(tpAniSirGlobal pCtx,
 
         if (pIe)
         {
-			if ((nBufRemaining < pIe->minSize - pIe->noui - 2U) ||
-			    (len < pIe->minSize - pIe->noui - 2U)) {
-				FRAMES_LOG4(pCtx, FRLOGW, FRFL("The IE %s must "
-					"be at least %d bytes in size, but "
-					"there are only %d bytes remaining in "
-					"this frame or the IE reports a size "
-					"of %d bytes.\n"),
-					pIe->name, pIe->minSize, nBufRemaining,
-					(len + pIe->noui + 2U));                
+			if ((nBufRemaining < pIe->minSize - pIe->noui - 2U)) {
+				FRAMES_LOG3(pCtx, FRLOGW, FRFL("The IE %s must "
+                            "be at least %d bytes in size, but "
+                            "there are only %d bytes remaining in "
+                            "this frame.\n"),
+                            pIe->name, pIe->minSize, nBufRemaining);
                 FRAMES_DUMP(pCtx, FRLOG1, pBuf, nBuf);
                 status |= DOT11F_INCOMPLETE_IE;
                 FRAMES_DBG_BREAK();
@@ -22242,6 +22239,14 @@ static tANI_U32 UnpackCore(tpAniSirGlobal pCtx,
             }
             else
             {
+                if (len < pIe->minSize - pIe->noui - 2U) {
+                     FRAMES_LOG3(pCtx, FRLOGW, FRFL("The IE %s must "
+                         "be at least %d bytes in size, but "
+                         "there are only %d bytes in the IE\n"),
+                         pIe->name, pIe->minSize, (len + pIe->noui + 2U));
+                     goto skip_ie;
+               }
+
                 if (len > pIe->maxSize - pIe->noui - 2U){
                 FRAMES_LOG1(pCtx, FRLOGW, FRFL("The IE %s reports "
                     "an unexpectedly large size; it is presumably "
@@ -22254,7 +22259,7 @@ static tANI_U32 UnpackCore(tpAniSirGlobal pCtx,
         countOffset = ( (0 != pIe->arraybound) * ( *(tANI_U16* )(pFrm + pIe->countOffset)));
         if (0 != pIe->arraybound && countOffset >= pIe->arraybound) {
             status |= DOT11F_DUPLICATE_IE;
-            goto skip_dup_ie;
+            goto skip_ie;
         }
                 switch (pIe->sig)
                 {
@@ -22733,7 +22738,7 @@ static tANI_U32 UnpackCore(tpAniSirGlobal pCtx,
             status |= DOT11F_UNKNOWN_IES;
         }
 
-skip_dup_ie:
+skip_ie:
         pBufRemaining += len;
 
          if (len > nBufRemaining)

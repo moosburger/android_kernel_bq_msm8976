@@ -671,7 +671,6 @@ static int msm_pcm_playback_close(struct snd_pcm_substream *substream)
 	uint32_t timeout;
 	int dir = 0;
 	int ret = 0;
-	struct msm_plat_data *pdata;
 
 	pr_debug("%s: cmd_pending 0x%lx\n", __func__, prtd->cmd_pending);
 

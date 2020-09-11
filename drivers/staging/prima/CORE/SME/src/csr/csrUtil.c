@@ -402,7 +402,7 @@ static tCsrCountryInfo gCsrCountryInfo[eCSR_NUM_COUNTRY_INDEX] =
     {REG_DOMAIN_HI_5GHZ, {'C', 'N', ' '}},   //CHINA
     {REG_DOMAIN_WORLD, {'C', 'O', ' '}},       //COLOMBIA
     {REG_DOMAIN_WORLD, {'C', 'R', ' '}},       //COSTA RICA
-    {REG_DOMAIN_WORLD, {'C', 'U', ' '}},     //CUBA  
+    {REG_DOMAIN_WORLD, {'C', 'U', ' '}},     //CUBA
     {REG_DOMAIN_WORLD, {'C', 'V', ' '}},     //CAPE VERDE
     {REG_DOMAIN_WORLD, {'C', 'X', ' '}},     //CHRISTMAS ISLAND
     {REG_DOMAIN_WORLD, {'C', 'Y', ' '}},      //CYPRUS
@@ -452,7 +452,7 @@ static tCsrCountryInfo gCsrCountryInfo[eCSR_NUM_COUNTRY_INDEX] =
     {REG_DOMAIN_WORLD, {'H', 'T', ' '}},     //HAITI
     {REG_DOMAIN_HI_5GHZ, {'H', 'U', ' '}},      //HUNGARY
     {REG_DOMAIN_APAC, {'I', 'D', ' '}},     //INDONESIA
-    {REG_DOMAIN_ETSI, {'I', 'E', ' '}},     //IRELAND        
+    {REG_DOMAIN_ETSI, {'I', 'E', ' '}},     //IRELAND
     {REG_DOMAIN_WORLD, {'I', 'L', ' '}},        //ISREAL
     {REG_DOMAIN_ETSI, {'I', 'M', ' '}},      //ISLE OF MAN
     {REG_DOMAIN_WORLD, {'I', 'N', ' '}},      //INDIA
@@ -472,7 +472,7 @@ static tCsrCountryInfo gCsrCountryInfo[eCSR_NUM_COUNTRY_INDEX] =
     {REG_DOMAIN_WORLD, {'K', 'M', ' '}},     //COMOROS
     {REG_DOMAIN_WORLD, {'K', 'N', ' '}},     //SAINT KITTS AND NEVIS
     {REG_DOMAIN_KOREA, {'K', 'P', ' '}},     //KOREA, DEMOCRATIC PEOPLE'S REPUBLIC OF
-    {REG_DOMAIN_KOREA, {'K', 'R', ' '}},     //KOREA, REPUBLIC OF 
+    {REG_DOMAIN_KOREA, {'K', 'R', ' '}},     //KOREA, REPUBLIC OF
     {REG_DOMAIN_WORLD, {'K', 'W', ' '}},     //KUWAIT
     {REG_DOMAIN_WORLD, {'K', 'Y', ' '}},     //CAYMAN ISLANDS
     {REG_DOMAIN_WORLD, {'K', 'Z', ' '}},     //KAZAKHSTAN
@@ -502,7 +502,7 @@ static tCsrCountryInfo gCsrCountryInfo[eCSR_NUM_COUNTRY_INDEX] =
     {REG_DOMAIN_WORLD, {'M', 'Q', ' '}},     //MARTINIQUE
     {REG_DOMAIN_WORLD, {'M', 'R', ' '}},     //MAURITANIA
     {REG_DOMAIN_WORLD, {'M', 'S', ' '}},     //MONTSERRAT
-    {REG_DOMAIN_WORLD, {'M', 'T', ' '}},      //MALTA     
+    {REG_DOMAIN_WORLD, {'M', 'T', ' '}},      //MALTA
     {REG_DOMAIN_WORLD, {'M', 'U', ' '}},     //MAURITIUS
     {REG_DOMAIN_WORLD, {'M', 'V', ' '}},     //MALDIVES
     {REG_DOMAIN_WORLD, {'M', 'W', ' '}},     //MALAWI
@@ -552,7 +552,7 @@ static tCsrCountryInfo gCsrCountryInfo[eCSR_NUM_COUNTRY_INDEX] =
     {REG_DOMAIN_HI_5GHZ, {'S', 'I', ' '}},      //SLOVENNIA
     {REG_DOMAIN_WORLD, {'S', 'J', ' '}},     //SVALBARD AND JAN MAYEN
     {REG_DOMAIN_HI_5GHZ, {'S', 'K', ' '}},      //SLOVAKIA
-    {REG_DOMAIN_WORLD, {'S', 'L', ' '}},     //SIERRA LEONE      
+    {REG_DOMAIN_WORLD, {'S', 'L', ' '}},     //SIERRA LEONE
     {REG_DOMAIN_WORLD, {'S', 'M', ' '}},     //SAN MARINO
     {REG_DOMAIN_WORLD, {'S', 'N', ' '}},     //SENEGAL
     {REG_DOMAIN_WORLD, {'S', 'O', ' '}},     //SOMALIA
@@ -1502,7 +1502,7 @@ tANI_BOOLEAN csrIsSessionClientAndConnected(tpAniSirGlobal pMac, tANI_U8 session
     return FALSE;
 }
 //This routine will return operating channel on FIRST BSS that is active/operating to be used for concurrency mode.
-//If other BSS is not up or not connected it will return 0 
+//If other BSS is not up or not connected it will return 0
 
 tANI_U8 csrGetConcurrentOperationChannel( tpAniSirGlobal pMac )
 {
@@ -1520,8 +1520,8 @@ tANI_U8 csrGetConcurrentOperationChannel( tpAniSirGlobal pMac )
               if (
                       (((pSession->pCurRoamProfile->csrPersona == VOS_STA_MODE) ||
                         (pSession->pCurRoamProfile->csrPersona == VOS_P2P_CLIENT_MODE)) &&
-                       (pSession->connectState == eCSR_ASSOC_STATE_TYPE_INFRA_ASSOCIATED)) 
-                      || 
+                       (pSession->connectState == eCSR_ASSOC_STATE_TYPE_INFRA_ASSOCIATED))
+                      ||
                       (((pSession->pCurRoamProfile->csrPersona == VOS_P2P_GO_MODE) ||
                         (pSession->pCurRoamProfile->csrPersona == VOS_STA_SAP_MODE)) &&
                        (pSession->connectState != eCSR_ASSOC_STATE_TYPE_NOT_CONNECTED))
@@ -1903,7 +1903,7 @@ tANI_BOOLEAN csrIsWmmSupported(tpAniSirGlobal pMac)
 
 
 //pIes is the IEs for pSirBssDesc2
-tANI_BOOLEAN csrIsSsidEqual( tHalHandle hHal, tSirBssDescription *pSirBssDesc1, 
+tANI_BOOLEAN csrIsSsidEqual( tHalHandle hHal, tSirBssDescription *pSirBssDesc1,
                              tSirBssDescription *pSirBssDesc2, tDot11fBeaconIEs *pIes2 )
 {
     tANI_BOOLEAN fEqual = FALSE;
@@ -2010,7 +2010,7 @@ tANI_BOOLEAN csrIsHcfEnabled( tDot11fIEAirgo *pIeAirgo )
 }
 
 
-eCsrMediaAccessType csrGetQoSFromBssDesc( tHalHandle hHal, tSirBssDescription *pSirBssDesc, 
+eCsrMediaAccessType csrGetQoSFromBssDesc( tHalHandle hHal, tSirBssDescription *pSirBssDesc,
                                           tDot11fBeaconIEs *pIes )
 {
     eCsrMediaAccessType qosType = eCSR_MEDIUM_ACCESS_DCF;
@@ -2083,6 +2083,7 @@ eHalStatus csrParseBssDescriptionIEs(tHalHandle hHal, tSirBssDescription *pBssDe
 eHalStatus csrGetParsedBssDescriptionIEs(tHalHandle hHal, tSirBssDescription *pBssDesc, tDot11fBeaconIEs **ppIEStruct)
 {
     eHalStatus status = eHAL_STATUS_INVALID_PARAMETER;
+#pragma GCC diagnostic ignored "-Wunused-variable"
     tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
 
     if(pBssDesc && ppIEStruct)
@@ -2324,7 +2325,7 @@ tANI_U32 csrTranslateToWNICfgDot11Mode(tpAniSirGlobal pMac, eCsrCfgDot11Mode csr
 
 
 //This function should only return the super set of supported modes. 11n implies 11b/g/a/n.
-eHalStatus csrGetPhyModeFromBss(tpAniSirGlobal pMac, tSirBssDescription *pBSSDescription, 
+eHalStatus csrGetPhyModeFromBss(tpAniSirGlobal pMac, tSirBssDescription *pBSSDescription,
                                 eCsrPhyMode *pPhyMode, tDot11fBeaconIEs *pIes)
 {
     eHalStatus status = eHAL_STATUS_SUCCESS;
@@ -2637,7 +2638,7 @@ tANI_BOOLEAN csrIsPhyModeMatch( tpAniSirGlobal pMac, tANI_U32 phyMode,
         {
             bitMask = 1;
             loopCount = 0;
-            while(loopCount < eCSR_NUM_PHY_MODE)   
+            while(loopCount < eCSR_NUM_PHY_MODE)
             {
                 if(0 != ( phyMode2 = (phyMode & (bitMask << loopCount++)) ))
                 {
@@ -2651,9 +2652,9 @@ tANI_BOOLEAN csrIsPhyModeMatch( tpAniSirGlobal pMac, tANI_U32 phyMode,
         {
             if( pProfile )
             {
-                /* IEEE 11n spec (8.4.3): HT STA shall eliminate TKIP as a 
-                 * choice for the pairwise cipher suite if CCMP is advertised 
-                 * by the AP or if the AP included an HT capabilities element 
+                /* IEEE 11n spec (8.4.3): HT STA shall eliminate TKIP as a
+                 * choice for the pairwise cipher suite if CCMP is advertised
+                 * by the AP or if the AP included an HT capabilities element
                  * in its Beacons and Probe Response.
                  */
                 if( (!CSR_IS_11n_ALLOWED( pProfile->negotiatedUCEncryptionType )) &&
@@ -2810,10 +2811,10 @@ tANI_BOOLEAN csrIsProfileRSN( tCsrRoamProfile *pProfile )
 #ifdef WLAN_FEATURE_VOWIFI_11R
         case eCSR_AUTH_TYPE_FT_RSN:
         case eCSR_AUTH_TYPE_FT_RSN_PSK:
-#endif 
+#endif
 #ifdef FEATURE_WLAN_ESE
         case eCSR_AUTH_TYPE_CCKM_RSN:
-#endif 
+#endif
 #ifdef WLAN_FEATURE_11W
         case eCSR_AUTH_TYPE_RSN_PSK_SHA256:
         case eCSR_AUTH_TYPE_RSN_8021X_SHA256:
@@ -2968,7 +2969,7 @@ eHalStatus csrUpdateMCCp2pBeaconInterval(tpAniSirGlobal pMac)
 
     for (sessionId = 0; sessionId < CSR_ROAM_SESSION_MAX; sessionId++ )
     {
-        /* If GO in MCC support different beacon interval, 
+        /* If GO in MCC support different beacon interval,
          * change the BI of the P2P-GO */
         if (pMac->roam.roamSession[sessionId].bssParams.bssPersona
                               == VOS_P2P_GO_MODE)
@@ -3001,7 +3002,7 @@ tANI_U16 csrCalculateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U16 sta_bi, tAN
     tANI_U16 go_fbi = 0;
     tANI_U16 sta_cbi = 0;
 
-    //If GO's given beacon Interval is less than 100 
+    //If GO's given beacon Interval is less than 100
     if(go_gbi < 100)
        go_cbi = 100;
     //if GO's given beacon Interval is greater than or equal to 100
@@ -3032,19 +3033,19 @@ tANI_U16 csrCalculateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U16 sta_bi, tAN
     {
         return go_cbi;
     }
-    //else , if it is not multiple, then then check for number of beacons to be 
+    //else , if it is not multiple, then then check for number of beacons to be
     //inserted based on sta BI
     num_beacons = sta_bi / 100;
     if (num_beacons)
-    { 
-        // GO's final beacon interval will be aligned to sta beacon interval, but 
+    {
+        // GO's final beacon interval will be aligned to sta beacon interval, but
         //in the range of [100, 199].
         sta_cbi = sta_bi / num_beacons;
         go_fbi = sta_cbi;
     }
     else
     {
-        // if STA beacon interval is less than 100, use GO's change bacon interval 
+        // if STA beacon interval is less than 100, use GO's change bacon interval
         //instead of updating to STA's beacon interval.
         go_fbi = go_cbi;
     }
@@ -3057,7 +3058,7 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
 {
     tANI_U32 sessionId = 0;
     tANI_U16 new_beaconInterval = 0;
-  
+
     //If MCC is not supported just break
     if (!pMac->roam.configParam.fenableMCCMode){
         return eHAL_STATUS_FAILURE;
@@ -3086,7 +3087,7 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                     else if (pMac->roam.roamSession[sessionId].bssParams.bssPersona
                                       == VOS_STA_SAP_MODE)
                     {
-                        if (pMac->roam.roamSession[sessionId].bssParams.operationChn 
+                        if (pMac->roam.roamSession[sessionId].bssParams.operationChn
                                                         != channelId )
                         {
                             smsLog(pMac, LOGE, FL("*** MCC with SAP+STA sessions ****"));
@@ -3096,11 +3097,11 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                     else if (pMac->roam.roamSession[sessionId].bssParams.bssPersona
                                       == VOS_P2P_GO_MODE) //Check for P2P go scenario
                     {
-                        /* if GO in MCC support different beacon interval, 
+                        /* if GO in MCC support different beacon interval,
                          * change the BI of the P2P-GO */
-                       if ((pMac->roam.roamSession[sessionId].bssParams.operationChn 
+                       if ((pMac->roam.roamSession[sessionId].bssParams.operationChn
                                 != channelId ) &&
-                           (pMac->roam.roamSession[sessionId].bssParams.beaconInterval 
+                           (pMac->roam.roamSession[sessionId].bssParams.beaconInterval
                                 != *beaconInterval))
                        {
                            /* if GO in MCC support different beacon interval, return success */
@@ -3115,7 +3116,7 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                                    (pMac->roam.configParam.fAllowMCCGODiffBI == 0x04))
                            {
                                //Check to pass the right beacon Interval
-                               new_beaconInterval = csrCalculateMCCBeaconInterval(pMac, *beaconInterval, 
+                               new_beaconInterval = csrCalculateMCCBeaconInterval(pMac, *beaconInterval,
                                                          pMac->roam.roamSession[sessionId].bssParams.beaconInterval);
                                smsLog(pMac, LOG1, FL(" Peer AP BI : %d, new Beacon Interval: %d"),*beaconInterval,new_beaconInterval );
                                //Update the becon Interval
@@ -3158,7 +3159,7 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                     else if (pMac->roam.roamSession[sessionId].bssParams.bssPersona
                                       == VOS_STA_SAP_MODE)
                     {
-                        if (pMac->roam.roamSession[sessionId].bssParams.operationChn 
+                        if (pMac->roam.roamSession[sessionId].bssParams.operationChn
                                                         != channelId )
                         {
                             smsLog(pMac, LOGE, FL("***MCC is not enabled for SAP + CLIENT****"));
@@ -3168,9 +3169,9 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                     else if (pMac->roam.roamSession[sessionId].bssParams.bssPersona
                                     == VOS_P2P_GO_MODE) //Check for P2P go scenario
                     {
-                        if ((pMac->roam.roamSession[sessionId].bssParams.operationChn 
+                        if ((pMac->roam.roamSession[sessionId].bssParams.operationChn
                                 != channelId ) &&
-                            (pMac->roam.roamSession[sessionId].bssParams.beaconInterval 
+                            (pMac->roam.roamSession[sessionId].bssParams.beaconInterval
                                 != *beaconInterval))
                         {
                             smsLog(pMac, LOGE, FL("BeaconInterval is different cannot connect to P2P_GO network ..."));
@@ -3203,7 +3204,7 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                                 "beacon interval is zero") );
                         }
 
-                            
+
                         if (csrIsConnStateConnectedInfra(pMac, sessionId) &&
                            (pMac->roam.roamSession[sessionId].connectedProfile.operationChannel
                                 != channelId ) &&
@@ -3211,11 +3212,11 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                                 != *beaconInterval))
                         {
                             /*
-                             * Updated beaconInterval should be used only when we are starting a new BSS 
+                             * Updated beaconInterval should be used only when we are starting a new BSS
                              * not incase of client or STA case
                              */
                             //Calculate beacon Interval for P2P-GO incase of MCC
-                            new_beaconInterval = csrCalculateMCCBeaconInterval(pMac, 
+                            new_beaconInterval = csrCalculateMCCBeaconInterval(pMac,
                                                 pMac->roam.roamSession[sessionId].bssParams.beaconInterval,
                                                 *beaconInterval );
                             if(*beaconInterval != new_beaconInterval)
@@ -3245,7 +3246,7 @@ tANI_BOOLEAN csrIsAuthType11r( eCsrAuthType AuthType, tANI_U8 mdiePresent)
         case eCSR_AUTH_TYPE_OPEN_SYSTEM:
             if(mdiePresent)
                 return TRUE;
-            break; 
+            break;
         case eCSR_AUTH_TYPE_FT_RSN_PSK:
         case eCSR_AUTH_TYPE_FT_RSN:
             return TRUE;
@@ -3486,7 +3487,7 @@ static tANI_BOOLEAN csrIsAuthWapiPsk( tpAniSirGlobal pMac, tANI_U8 AllSuites[][C
 
 #ifdef WLAN_FEATURE_VOWIFI_11R
 
-/* 
+/*
  * Function for 11R FT Authentication. We match the FT Authentication Cipher suite
  * here. This matches for FT Auth with the 802.1X exchange.
  *
@@ -3498,7 +3499,7 @@ static tANI_BOOLEAN csrIsFTAuthRSN( tpAniSirGlobal pMac, tANI_U8 AllSuites[][CSR
     return( csrIsOuiMatch( pMac, AllSuites, cAllSuites, csrRSNOui[03], Oui ) );
 }
 
-/* 
+/*
  * Function for 11R FT Authentication. We match the FT Authentication Cipher suite
  * here. This matches for FT Auth with the PSK.
  *
@@ -3717,8 +3718,8 @@ tANI_BOOLEAN csrGetRSNInformation( tHalHandle hHal, tCsrAuthList *pAuthType, eCs
             }
 
             //Check - Is requested Unicast Cipher supported by the BSS.
-            fAcceptableCyphers = csrMatchRSNOUIIndex( pMac, pRSNIe->pwise_cipher_suites, cUnicastCyphers, 
-                    csrGetOUIIndexFromCipher( enType ), Unicast ); 
+            fAcceptableCyphers = csrMatchRSNOUIIndex( pMac, pRSNIe->pwise_cipher_suites, cUnicastCyphers,
+                    csrGetOUIIndexFromCipher( enType ), Unicast );
 
             if( !fAcceptableCyphers ) break;
 
@@ -3726,7 +3727,7 @@ tANI_BOOLEAN csrGetRSNInformation( tHalHandle hHal, tCsrAuthList *pAuthType, eCs
             //Unicast is supported. Pick the first matching Group cipher, if any.
             for( i = 0 ; i < pMCEncryption->numEntries ; i++ )
             {
-                fAcceptableCyphers = csrMatchRSNOUIIndex( pMac, MulticastCyphers,  cMulticastCyphers, 
+                fAcceptableCyphers = csrMatchRSNOUIIndex( pMac, MulticastCyphers,  cMulticastCyphers,
                             csrGetOUIIndexFromCipher( pMCEncryption->encryptionType[i] ), Multicast );
                 if(fAcceptableCyphers)
                 {
@@ -3737,7 +3738,7 @@ tANI_BOOLEAN csrGetRSNInformation( tHalHandle hHal, tCsrAuthList *pAuthType, eCs
 
             if( pNegotiatedMCCipher )
                 *pNegotiatedMCCipher = pMCEncryption->encryptionType[i];
-            
+
             /* Initializing with FALSE as it has TRUE value already */
             fAcceptableCyphers = FALSE;
             for (i = 0 ; i < pAuthType->numEntries; i++)
@@ -3941,7 +3942,7 @@ tANI_BOOLEAN csrIsRSNMatch( tHalHandle hHal, tCsrAuthList *pAuthType,
     tANI_BOOLEAN fRSNMatch = FALSE;
 
         // See if the cyphers in the Bss description match with the settings in the profile.
-    fRSNMatch = csrGetRSNInformation( hHal, pAuthType, enType, pEnMcType, &pIes->RSN, NULL, NULL, NULL, NULL, 
+    fRSNMatch = csrGetRSNInformation( hHal, pAuthType, enType, pEnMcType, &pIes->RSN, NULL, NULL, NULL, NULL,
                                       pNegotiatedAuthType, pNegotiatedMCCipher );
 #ifdef WLAN_FEATURE_11W
     /* If all the filter matches then finally checks for PMF capabilities */
@@ -3968,16 +3969,16 @@ tANI_BOOLEAN csrLookupPMKID( tpAniSirGlobal pMac, tANI_U32 sessionId, tANI_U8 *p
         smsLog(pMac, LOGE, FL("  session %d not found "), sessionId);
         return FALSE;
     }
-   /* to force the AP initiate fresh 802.1x authentication after re-association should not 
-    * fill the PMKID from cache  this is needed 
-    * by the HS 2.0 passpoint certification 5.2.a and b testcases */ 
-    
+   /* to force the AP initiate fresh 802.1x authentication after re-association should not
+    * fill the PMKID from cache  this is needed
+    * by the HS 2.0 passpoint certification 5.2.a and b testcases */
+
     if(pSession->fIgnorePMKIDCache)
     {
         pSession->fIgnorePMKIDCache = FALSE;
         return fRC;
     }
-    
+
     do
     {
         for( Index=0; Index < CSR_MAX_PMKID_ALLOWED; Index++ )
@@ -4035,7 +4036,7 @@ tANI_U8 csrConstructRSNIe( tHalHandle hHal, tANI_U32 sessionId, tCsrRoamProfile 
         }
 
         // See if the cyphers in the Bss description match with the settings in the profile.
-        fRSNMatch = csrGetRSNInformation( hHal, &pProfile->AuthType, pProfile->negotiatedUCEncryptionType, 
+        fRSNMatch = csrGetRSNInformation( hHal, &pProfile->AuthType, pProfile->negotiatedUCEncryptionType,
                                             &pProfile->mcEncryptionType, &pIesLocal->RSN,
                                             UnicastCypher, MulticastCypher, AuthSuite, &RSNCapabilities, &negAuthType, NULL );
         if ( !fRSNMatch ) break;
@@ -4166,8 +4167,8 @@ tANI_BOOLEAN csrGetWapiInformation( tHalHandle hHal, tCsrAuthList *pAuthType, eC
             }
 
             //Check - Is requested Unicast Cipher supported by the BSS.
-            fAcceptableCyphers = csrMatchWapiOUIIndex( pMac, pWapiIe->unicast_cipher_suites, cUnicastCyphers, 
-                    csrGetOUIIndexFromCipher( enType ), Unicast ); 
+            fAcceptableCyphers = csrMatchWapiOUIIndex( pMac, pWapiIe->unicast_cipher_suites, cUnicastCyphers,
+                    csrGetOUIIndexFromCipher( enType ), Unicast );
 
             if( !fAcceptableCyphers ) break;
 
@@ -4175,7 +4176,7 @@ tANI_BOOLEAN csrGetWapiInformation( tHalHandle hHal, tCsrAuthList *pAuthType, eC
             //Unicast is supported. Pick the first matching Group cipher, if any.
             for( i = 0 ; i < pMCEncryption->numEntries ; i++ )
             {
-                fAcceptableCyphers = csrMatchWapiOUIIndex( pMac, MulticastCyphers,  cMulticastCyphers, 
+                fAcceptableCyphers = csrMatchWapiOUIIndex( pMac, MulticastCyphers,  cMulticastCyphers,
                 csrGetOUIIndexFromCipher( pMCEncryption->encryptionType[i] ), Multicast );
                 if(fAcceptableCyphers)
                 {
@@ -4243,13 +4244,13 @@ tANI_BOOLEAN csrGetWapiInformation( tHalHandle hHal, tCsrAuthList *pAuthType, eC
     return( fAcceptableCyphers );
 }
 
-tANI_BOOLEAN csrIsWapiMatch( tHalHandle hHal, tCsrAuthList *pAuthType, eCsrEncryptionType enType, tCsrEncryptionList *pEnMcType, 
+tANI_BOOLEAN csrIsWapiMatch( tHalHandle hHal, tCsrAuthList *pAuthType, eCsrEncryptionType enType, tCsrEncryptionList *pEnMcType,
                             tDot11fBeaconIEs *pIes, eCsrAuthType *pNegotiatedAuthType, eCsrEncryptionType *pNegotiatedMCCipher )
 {
     tANI_BOOLEAN fWapiMatch = FALSE;
 
         // See if the cyphers in the Bss description match with the settings in the profile.
-    fWapiMatch = csrGetWapiInformation( hHal, pAuthType, enType, pEnMcType, &pIes->WAPI, NULL, NULL, NULL, 
+    fWapiMatch = csrGetWapiInformation( hHal, pAuthType, enType, pEnMcType, &pIes->WAPI, NULL, NULL, NULL,
                                       pNegotiatedAuthType, pNegotiatedMCCipher );
 
     return( fWapiMatch );
@@ -4316,7 +4317,7 @@ tANI_U8 csrConstructWapiIe( tpAniSirGlobal pMac, tANI_U32 sessionId, tCsrRoamPro
         }
 
         // See if the cyphers in the Bss description match with the settings in the profile.
-        fWapiMatch = csrGetWapiInformation( pMac, &pProfile->AuthType, pProfile->negotiatedUCEncryptionType, 
+        fWapiMatch = csrGetWapiInformation( pMac, &pProfile->AuthType, pProfile->negotiatedUCEncryptionType,
                                             &pProfile->mcEncryptionType, &pIesLocal->WAPI,
                                             UnicastCypher, MulticastCypher, AuthSuite, NULL, NULL );
         if ( !fWapiMatch ) break;
@@ -4419,7 +4420,7 @@ tANI_BOOLEAN csrGetWpaCyphers( tpAniSirGlobal pMac, tCsrAuthList *pAuthType, eCs
             cAuthSuites = (tANI_U8)(pWpaIe->auth_suite_count);
 
             //Check - Is requested Unicast Cipher supported by the BSS.
-            fAcceptableCyphers = csrMatchWPAOUIIndex( pMac, pWpaIe->unicast_ciphers, cUnicastCyphers, 
+            fAcceptableCyphers = csrMatchWPAOUIIndex( pMac, pWpaIe->unicast_ciphers, cUnicastCyphers,
                     csrGetOUIIndexFromCipher( enType ), Unicast );
 
             if( !fAcceptableCyphers ) break;
@@ -4428,7 +4429,7 @@ tANI_BOOLEAN csrGetWpaCyphers( tpAniSirGlobal pMac, tCsrAuthList *pAuthType, eCs
             //Unicast is supported. Pick the first matching Group cipher, if any.
             for( i = 0 ; i < pMCEncryption->numEntries ; i++ )
             {
-                fAcceptableCyphers = csrMatchWPAOUIIndex( pMac, MulticastCyphers,  cMulticastCyphers, 
+                fAcceptableCyphers = csrMatchWPAOUIIndex( pMac, MulticastCyphers,  cMulticastCyphers,
                             csrGetOUIIndexFromCipher( pMCEncryption->encryptionType[i]), Multicast );
                 if(fAcceptableCyphers)
                 {
@@ -4436,7 +4437,7 @@ tANI_BOOLEAN csrGetWpaCyphers( tpAniSirGlobal pMac, tCsrAuthList *pAuthType, eCs
                 }
             }
             if( !fAcceptableCyphers ) break;
-            
+
             if( pNegotiatedMCCipher )
                 *pNegotiatedMCCipher = pMCEncryption->encryptionType[i];
 
@@ -4515,7 +4516,7 @@ tANI_BOOLEAN csrIsWpaEncryptionMatch( tpAniSirGlobal pMac, tCsrAuthList *pAuthTy
 }
 
 
-tANI_U8 csrConstructWpaIe( tHalHandle hHal, tCsrRoamProfile *pProfile, tSirBssDescription *pSirBssDesc, 
+tANI_U8 csrConstructWpaIe( tHalHandle hHal, tCsrRoamProfile *pProfile, tSirBssDescription *pSirBssDesc,
                            tDot11fBeaconIEs *pIes, tCsrWpaIe *pWpaIe )
 {
     tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
@@ -4704,7 +4705,7 @@ tANI_BOOLEAN csrGetWpaRsnIe( tHalHandle hHal, tANI_U8 *pIes, tANI_U32 len,
 
 //If a WPAIE exists in the profile, just use it. Or else construct one from the BSS
 //Caller allocated memory for pWpaIe and guarrantee it can contain a max length WPA IE
-tANI_U8 csrRetrieveWpaIe( tHalHandle hHal, tCsrRoamProfile *pProfile, tSirBssDescription *pSirBssDesc, 
+tANI_U8 csrRetrieveWpaIe( tHalHandle hHal, tCsrRoamProfile *pProfile, tSirBssDescription *pSirBssDesc,
                           tDot11fBeaconIEs *pIes, tCsrWpaIe *pWpaIe )
 {
     tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
@@ -4737,7 +4738,7 @@ tANI_U8 csrRetrieveWpaIe( tHalHandle hHal, tCsrRoamProfile *pProfile, tSirBssDes
 
 //If a RSNIE exists in the profile, just use it. Or else construct one from the BSS
 //Caller allocated memory for pWpaIe and guarrantee it can contain a max length WPA IE
-tANI_U8 csrRetrieveRsnIe( tHalHandle hHal, tANI_U32 sessionId, tCsrRoamProfile *pProfile, 
+tANI_U8 csrRetrieveRsnIe( tHalHandle hHal, tANI_U32 sessionId, tCsrRoamProfile *pProfile,
                          tSirBssDescription *pSirBssDesc, tDot11fBeaconIEs *pIes, tCsrRSNIe *pRsnIe )
 {
     tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
@@ -4749,15 +4750,15 @@ tANI_U8 csrRetrieveRsnIe( tHalHandle hHal, tANI_U32 sessionId, tCsrRoamProfile *
 #ifdef FEATURE_WLAN_LFR
         if (csrRoamIsFastRoamEnabled(pMac, sessionId))
         {
-            // If "Legacy Fast Roaming" is enabled ALWAYS rebuild the RSN IE from 
+            // If "Legacy Fast Roaming" is enabled ALWAYS rebuild the RSN IE from
             // scratch. So it contains the current PMK-IDs
             cbRsnIe = csrConstructRSNIe(pMac, sessionId, pProfile, pSirBssDesc, pIes, pRsnIe);
         }
-        else 
+        else
 #endif
         if(pProfile->nRSNReqIELength && pProfile->pRSNReqIE)
         {
-            // If you have one started away, re-use it. 
+            // If you have one started away, re-use it.
             if(SIR_MAC_WPA_IE_MAX_LENGTH >= pProfile->nRSNReqIELength)
             {
                 cbRsnIe = (tANI_U8)pProfile->nRSNReqIELength;
@@ -4781,8 +4782,8 @@ tANI_U8 csrRetrieveRsnIe( tHalHandle hHal, tANI_U32 sessionId, tCsrRoamProfile *
 #ifdef FEATURE_WLAN_WAPI
 //If a WAPI IE exists in the profile, just use it. Or else construct one from the BSS
 //Caller allocated memory for pWapiIe and guarrantee it can contain a max length WAPI IE
-tANI_U8 csrRetrieveWapiIe( tHalHandle hHal, tANI_U32 sessionId, 
-                          tCsrRoamProfile *pProfile, tSirBssDescription *pSirBssDesc, 
+tANI_U8 csrRetrieveWapiIe( tHalHandle hHal, tANI_U32 sessionId,
+                          tCsrRoamProfile *pProfile, tSirBssDescription *pSirBssDesc,
                           tDot11fBeaconIEs *pIes, tCsrWapiIe *pWapiIe )
 {
     tpAniSirGlobal pMac = PMAC_STRUCT( hHal );
@@ -4945,8 +4946,8 @@ tAniEdType csrTranslateEncryptTypeToEdType( eCsrEncryptionType EncryptType )
 
 
 //pIes can be NULL
-tANI_BOOLEAN csrValidateWep( tpAniSirGlobal pMac, eCsrEncryptionType ucEncryptionType, 
-                             tCsrAuthList *pAuthList, tCsrEncryptionList *pMCEncryptionList, 
+tANI_BOOLEAN csrValidateWep( tpAniSirGlobal pMac, eCsrEncryptionType ucEncryptionType,
+                             tCsrAuthList *pAuthList, tCsrEncryptionList *pMCEncryptionList,
                              eCsrAuthType *pNegotiatedAuthType, eCsrEncryptionType *pNegotiatedMCEncryption,
                              tSirBssDescription *pSirBssDesc, tDot11fBeaconIEs *pIes )
 {
@@ -4956,7 +4957,7 @@ tANI_BOOLEAN csrValidateWep( tpAniSirGlobal pMac, eCsrEncryptionType ucEncryptio
     eCsrEncryptionType negotiatedMCCipher = eCSR_ENCRYPT_TYPE_UNKNOWN;
 
     //This function just checks whether HDD is giving correct values for Multicast cipher and Auth.
-    
+
     do
     {
         //If privacy bit is not set, consider no match
@@ -4982,7 +4983,7 @@ tANI_BOOLEAN csrValidateWep( tpAniSirGlobal pMac, eCsrEncryptionType ucEncryptio
                     fMatch = FALSE;
                     break;
             }
-            if(fMatch) break; 
+            if(fMatch) break;
         }
 
         if(!fMatch) break;
@@ -5041,7 +5042,7 @@ tANI_BOOLEAN csrValidateWep( tpAniSirGlobal pMac, eCsrEncryptionType ucEncryptio
 
         if( pNegotiatedMCEncryption )
             *pNegotiatedMCEncryption = negotiatedMCCipher;
-    }    
+    }
 
 
     return fMatch;
@@ -5112,7 +5113,7 @@ tANI_BOOLEAN csrIsSecurityMatch( tHalHandle hHal, tCsrAuthList *authType,
                                negAuthType = eCSR_AUTH_TYPE_OPEN_SYSTEM;
                                break;
                             }
-                        } 
+                        }
                         if (!fMatch) break;
 
                     }
@@ -5148,7 +5149,7 @@ tANI_BOOLEAN csrIsSecurityMatch( tHalHandle hHal, tCsrAuthList *authType,
                         if( !fMatch )
                         {
                             // If not RSN, then check if there is a WPA match
-                            fMatch = csrIsWpaEncryptionMatch( pMac, authType, ucCipher, pMCEncryptionType, pIes, 
+                            fMatch = csrIsWpaEncryptionMatch( pMac, authType, ucCipher, pMCEncryptionType, pIes,
                                                               &negAuthType, &mcCipher );
                         }
                     }
@@ -5172,8 +5173,8 @@ tANI_BOOLEAN csrIsSecurityMatch( tHalHandle hHal, tCsrAuthList *authType,
                    break;
                }
 #endif /* FEATURE_WLAN_WAPI */
-            case eCSR_ENCRYPT_TYPE_ANY: 
-            default: 
+            case eCSR_ENCRYPT_TYPE_ANY:
+            default:
             {
                 tANI_BOOLEAN fMatchAny = eANI_BOOLEAN_FALSE;
 
@@ -5243,14 +5244,14 @@ tANI_BOOLEAN csrIsSecurityMatch( tHalHandle hHal, tCsrAuthList *authType,
 
     }
 
-    if( fMatch ) 
+    if( fMatch )
     {
         if( negotiatedUCCipher )
             *negotiatedUCCipher = ucCipher;
-   
+
         if( negotiatedMCCipher )
             *negotiatedMCCipher = mcCipher;
-   
+
         if( negotiatedAuthtype )
             *negotiatedAuthtype = negAuthType;
     }
@@ -5725,7 +5726,7 @@ static tANI_BOOLEAN csrIsRateSetMatch( tpAniSirGlobal pMac,
 
 
 //ppIes can be NULL. If caller want to get the *ppIes allocated by this function, pass in *ppIes = NULL
-tANI_BOOLEAN csrMatchBSS( tHalHandle hHal, tSirBssDescription *pBssDesc, tCsrScanResultFilter *pFilter, 
+tANI_BOOLEAN csrMatchBSS( tHalHandle hHal, tSirBssDescription *pBssDesc, tCsrScanResultFilter *pFilter,
                           eCsrAuthType *pNegAuth, eCsrEncryptionType *pNegUc, eCsrEncryptionType *pNegMc,
                           tDot11fBeaconIEs **ppIes)
 {
@@ -5749,7 +5750,7 @@ tANI_BOOLEAN csrMatchBSS( tHalHandle hHal, tSirBssDescription *pBssDesc, tCsrSca
             //Save the one pass in for local use
             pIes = *ppIes;
         }
-        
+
         //Check if caller wants P2P
         fCheck = (!pFilter->p2pResult || pIes->P2PBeaconProbeRes.present);
         if(!fCheck) break;
@@ -5773,7 +5774,7 @@ tANI_BOOLEAN csrMatchBSS( tHalHandle hHal, tSirBssDescription *pBssDesc, tCsrSca
 
             if (pFilter->p2pResult && pIes->P2PBeaconProbeRes.present)
             {
-               fCheck = csrIsBssidMatch( pMac, (tCsrBssid *)&pFilter->BSSIDs.bssid[i], 
+               fCheck = csrIsBssidMatch( pMac, (tCsrBssid *)&pFilter->BSSIDs.bssid[i],
                               (tCsrBssid *)pIes->P2PBeaconProbeRes.P2PDeviceInfo.P2PDeviceAddress );
 
                if ( fCheck ) break;
@@ -5858,7 +5859,7 @@ tANI_BOOLEAN csrMatchBSS( tHalHandle hHal, tSirBssDescription *pBssDesc, tCsrSca
     return( fRC );
 }
 
-tANI_BOOLEAN csrMatchConnectedBSSSecurity( tpAniSirGlobal pMac, tCsrRoamConnectedProfile *pProfile, 
+tANI_BOOLEAN csrMatchConnectedBSSSecurity( tpAniSirGlobal pMac, tCsrRoamConnectedProfile *pProfile,
                                            tSirBssDescription *pBssDesc, tDot11fBeaconIEs *pIes)
 {
     tCsrEncryptionList ucEncryptionList, mcEncryptionList;
@@ -6749,12 +6750,12 @@ eHalStatus csrSetModifyProfileFields(tpAniSirGlobal pMac, tANI_U32 sessionId,
 /* ---------------------------------------------------------------------------
     \fn csrGetSupportedCountryCode
     \brief this function is to get a list of the country code current being supported
-    \param pBuf - Caller allocated buffer with at least 3 bytes, upon success return, 
+    \param pBuf - Caller allocated buffer with at least 3 bytes, upon success return,
     this has the country code list. 3 bytes for each country code. This may be NULL if
     caller wants to know the needed bytes.
     \param pbLen - Caller allocated, as input, it indicates the length of pBuf. Upon success return,
     this contains the length of the data in pBuf
-    \return eHalStatus     
+    \return eHalStatus
   -------------------------------------------------------------------------------*/
 eHalStatus csrGetSupportedCountryCode(tpAniSirGlobal pMac, tANI_U8 *pBuf, tANI_U32 *pbLen)
 {
@@ -6790,12 +6791,12 @@ eHalStatus csrGetSupportedCountryCode(tpAniSirGlobal pMac, tANI_U8 *pBuf, tANI_U
 /* ---------------------------------------------------------------------------
     \fn csrGetSupportedCountryCode
     \brief this function is to get a list of the country code current being supported
-    \param pBuf - Caller allocated buffer with at least 3 bytes, upon success return, 
+    \param pBuf - Caller allocated buffer with at least 3 bytes, upon success return,
     this has the country code list. 3 bytes for each country code. This may be NULL if
     caller wants to know the needed bytes.
     \param pbLen - Caller allocated, as input, it indicates the length of pBuf. Upon success return,
     this contains the length of the data in pBuf
-    \return eHalStatus     
+    \return eHalStatus
   -------------------------------------------------------------------------------*/
 eHalStatus csrGetSupportedCountryCode(tpAniSirGlobal pMac, tANI_U8 *pBuf, tANI_U32 *pbLen)
 {
@@ -6837,7 +6838,7 @@ eHalStatus csrScanGetBaseChannels( tpAniSirGlobal pMac, tCsrChannelInfo * pChann
 
     do
     {
-    
+
        if(!pMac->scan.baseChannels.numChannels || !pChannelInfo)
        {
           break;
@@ -6870,12 +6871,12 @@ tANI_BOOLEAN csrIsSetKeyAllowed(tpAniSirGlobal pMac, tANI_U32 sessionId)
     * the pSession->pCurRoamProfile is NULL. And this function returns TRUE, that is incorrect.
     * Since SAP requires to set key without any BSS started, it needs this condition to be met.
     * In other words, this function is useless.
-    * The current work-around is to process setcontext_rsp and removekey_rsp no matter what the 
+    * The current work-around is to process setcontext_rsp and removekey_rsp no matter what the
     * state is.
     */
     smsLog( pMac, LOG2, FL(" is not what it intends to. Must be revisit or removed") );
-    if( (NULL == pSession) || 
-        ( csrIsConnStateDisconnected( pMac, sessionId ) && 
+    if( (NULL == pSession) ||
+        ( csrIsConnStateDisconnected( pMac, sessionId ) &&
         (pSession->pCurRoamProfile != NULL) &&
         (!(CSR_IS_INFRA_AP(pSession->pCurRoamProfile))) )
         )
@@ -6891,9 +6892,9 @@ tANI_U16 sme_ChnToFreq(tANI_U8 chanNum)
 {
    int i;
 
-   for (i = 0; i < NUM_RF_CHANNELS; i++) 
+   for (i = 0; i < NUM_RF_CHANNELS; i++)
    {
-      if (rfChannels[i].channelNum == chanNum) 
+      if (rfChannels[i].channelNum == chanNum)
       {
          return rfChannels[i].targetFreq;
       }
@@ -6902,14 +6903,14 @@ tANI_U16 sme_ChnToFreq(tANI_U8 chanNum)
    return (0);
 }
 
-/* Disconnect all active sessions by sending disassoc. This is mainly used to disconnect the remaining session when we 
- * transition from concurrent sessions to a single session. The use case is Infra STA and wifi direct multiple sessions are up and 
+/* Disconnect all active sessions by sending disassoc. This is mainly used to disconnect the remaining session when we
+ * transition from concurrent sessions to a single session. The use case is Infra STA and wifi direct multiple sessions are up and
  * P2P session is removed. The Infra STA session remains and should resume BMPS if BMPS is enabled by default. However, there
  * are some issues seen with BMPS resume during this transition and this is a workaround which will allow the Infra STA session to
  * disconnect and auto connect back and enter BMPS this giving the same effect as resuming BMPS
  */
- 
-//Remove this code once SLM_Sessionization is supported 
+
+//Remove this code once SLM_Sessionization is supported
 //BMPS_WORKAROUND_NOT_NEEDED
 void csrDisconnectAllActiveSessions(tpAniSirGlobal pMac)
 {
